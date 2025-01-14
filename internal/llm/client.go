@@ -2,7 +2,6 @@ package llm
 
 import (
 	"context"
-	"io"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -39,16 +38,16 @@ func NewClient(modelType string, apiKey string) (*Client, error) {
 
 func (c *Client) SendMessage(ctx context.Context, prompt string) (string, error) {
 	msg := llms.TextParts(llms.ChatMessageTypeHuman, prompt)
-	
+
 	completion, err := c.model.GenerateContent(
-		ctx, 
+		ctx,
 		[]llms.MessageContent{msg},
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
 			// For now we're not using streaming, but it's ready to be implemented
 			return nil
 		}),
 	)
-	
+
 	if err != nil {
 		return "", err
 	}
@@ -56,21 +55,22 @@ func (c *Client) SendMessage(ctx context.Context, prompt string) (string, error)
 	if len(completion.Choices) > 0 {
 		return completion.Choices[0].Content, nil
 	}
-	
+
 	return "", nil
 }
 
 func (c *Client) SendMessageStream(ctx context.Context, prompt string, handler StreamHandler) error {
 	msg := llms.TextParts(llms.ChatMessageTypeHuman, prompt)
-	
+
 	_, err := c.model.GenerateContent(
-		ctx, 
+		ctx,
 		[]llms.MessageContent{msg},
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
 			handler(string(chunk))
 			return nil
 		}),
 	)
-	
+
 	return err
 }
+

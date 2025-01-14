@@ -20,6 +20,6 @@ var (
 			Padding(0, 1)
 
 	StatusMessageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"}).
-			Render
+				Foreground(lipgloss.AdaptiveColor{Light: "#04B575", Dark: "#04B575"}).
+				Render
 )

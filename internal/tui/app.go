@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"context"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/isaacphi/wheel/internal/db"
 	"github.com/isaacphi/wheel/internal/llm"
@@ -82,3 +80,4 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	return m.currentModel.View()
 }
+

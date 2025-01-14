@@ -1,12 +1,14 @@
 package components
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/isaacphi/wheel/internal/db"
 	"github.com/isaacphi/wheel/internal/llm"
 	"github.com/isaacphi/wheel/internal/tui/styles"
@@ -14,13 +16,13 @@ import (
 
 type ChatView struct {
 	conversation db.Conversation
-	viewport    viewport.Model
-	textarea    textarea.Model
-	messages    []db.Message
-	client      *llm.Client
-	err         error
-	ready       bool
-	streaming   bool
+	viewport     viewport.Model
+	textarea     textarea.Model
+	messages     []db.Message
+	client       *llm.Client
+	err          error
+	ready        bool
+	streaming    bool
 }
 
 func NewChatView(conversation db.Conversation, client *llm.Client) *ChatView {
@@ -42,10 +44,10 @@ func NewChatView(conversation db.Conversation, client *llm.Client) *ChatView {
 
 	return &ChatView{
 		conversation: conversation,
-		textarea:    ta,
-		viewport:    vp,
-		client:      client,
-		messages:    make([]db.Message, 0),
+		textarea:     ta,
+		viewport:     vp,
+		client:       client,
+		messages:     make([]db.Message, 0),
 	}
 }
 
@@ -120,8 +122,8 @@ func (m *ChatView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.streaming = false
 		m.messages = append(m.messages, db.Message{
 			ConversationID: m.conversation.ID,
-			Role:          "assistant",
-			Content:       msg.content,
+			Role:           "assistant",
+			Content:        msg.content,
 		})
 		m.viewport.SetContent(m.renderMessages())
 		m.viewport.GotoBottom()
@@ -161,8 +163,8 @@ func (m *ChatView) sendMessage(content string) tea.Cmd {
 	return func() tea.Msg {
 		userMsg := db.Message{
 			ConversationID: m.conversation.ID,
-			Role:          "user",
-			Content:       content,
+			Role:           "user",
+			Content:        content,
 		}
 		db.DB.Create(&userMsg)
 
@@ -177,11 +179,12 @@ func (m *ChatView) sendMessage(content string) tea.Cmd {
 
 		assistantMsg := db.Message{
 			ConversationID: m.conversation.ID,
-			Role:          "assistant",
-			Content:       response,
+			Role:           "assistant",
+			Content:        response,
 		}
 		db.DB.Create(&assistantMsg)
 
 		return streamMsg{content: response}
 	}
 }
+

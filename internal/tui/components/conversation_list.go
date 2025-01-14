@@ -67,14 +67,18 @@ func (m *ConversationList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Handle key presses before passing to list
 		switch msg.String() {
+		case "n":
+			// Create an empty conversation to signal new conversation creation
+			m.selected <- db.Conversation{}
+			return m, nil
 		case "enter":
 			if i, ok := m.list.SelectedItem().(ConversationItem); ok {
 				m.selected <- i.conversation
-				return m, tea.Quit
+				return m, nil
 			}
-		case "n":
-			m.selected <- db.Conversation{}
+		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
 
@@ -82,7 +86,7 @@ func (m *ConversationList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.MouseLeft {
 			if i, ok := m.list.SelectedItem().(ConversationItem); ok {
 				m.selected <- i.conversation
-				return m, tea.Quit
+				return m, nil
 			}
 		}
 
