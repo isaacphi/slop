@@ -10,17 +10,17 @@ type Config struct {
 	Database struct {
 		Path string
 	}
-	Models map[string]ModelConfig
-}
-
-type ModelConfig struct {
-	Type       string
-	APIKey     string
-	MaxTokens  int
-	Temperature float64
+	OpenAI struct {
+		APIKey string
+	}
 }
 
 func Initialize() error {
+	// Load environment variables first
+	if err := loadEnv(); err != nil {
+		return err
+	}
+
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml") // will support both yaml and json
 	

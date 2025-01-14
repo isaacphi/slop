@@ -1,65 +1,84 @@
 package tui
 
 import (
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/bubbles/textinput"
+	"context"
+
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/isaacphi/wheel/internal/db"
+	"github.com/isaacphi/wheel/internal/llm"
+	"github.com/isaacphi/wheel/internal/tui/components"
+	"github.com/spf13/viper"
+)
+
+type AppState int
+
+const (
+	StateConversationList AppState = iota
+	StateChat
 )
 
 type Model struct {
-	viewport    viewport.Model
-	input       textinput.Model
-	messages    []string
-	err         error
+	state          AppState
+	conversationCh chan db.Conversation
+	client         *llm.Client
+	currentModel   tea.Model
 }
 
-func NewModel() Model {
-	input := textinput.New()
-	input.Placeholder = "Send a message..."
-	input.Focus()
+func NewModel() (Model, error) {
+	client, err := llm.NewClient("openai", viper.GetString("openai.api_key"))
+	if err != nil {
+		return Model{}, err
+	}
+
+	ch := make(chan db.Conversation, 1)
+	list := components.NewConversationList(ch)
 
 	return Model{
-		viewport: viewport.New(0, 0),
-		input:    input,
-		messages: make([]string, 0),
-	}
+		state:          StateConversationList,
+		conversationCh: ch,
+		client:         client,
+		currentModel:   list,
+	}, nil
 }
 
 func (m Model) Init() tea.Cmd {
-	return textinput.Blink
+	return m.currentModel.Init()
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-	)
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c", "q":
 			return m, tea.Quit
-		case "enter":
-			if m.input.Value() != "" {
-				m.messages = append(m.messages, "> "+m.input.Value())
-				m.input.Reset()
-				// TODO: Handle message sending to LLM
-			}
 		}
 	}
 
-	m.input, cmd = m.input.Update(msg)
-	cmds = append(cmds, cmd)
+	// Handle conversation selection
+	select {
+	case conv := <-m.conversationCh:
+		if conv.ID == 0 {
+			// Create new conversation
+			conv = db.Conversation{
+				Title: "New Conversation",
+			}
+			db.DB.Create(&conv)
+		}
+		m.state = StateChat
+		m.currentModel = components.NewChatView(conv, m.client)
+		return m, m.currentModel.Init()
+	default:
+	}
 
-	return m, tea.Batch(cmds...)
+	// Update current model
+	var newModel tea.Model
+	newModel, cmd = m.currentModel.Update(msg)
+	m.currentModel = newModel
+	return m, cmd
 }
 
 func (m Model) View() string {
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.viewport.View(),
-		m.input.View(),
-	)
+	return m.currentModel.View()
 }
