@@ -2,75 +2,73 @@ package llm
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-type StreamHandler func(chunk string)
-
 type Client struct {
-	model llms.Model
+	llm llms.Model
 }
 
-func NewClient(modelType string, apiKey string) (*Client, error) {
-	var model llms.Model
-	var err error
+type Options struct {
+	Model       string
+	Temperature float64
+	MaxTokens   int
+}
 
-	switch modelType {
-	case "openai":
-		model, err = openai.New(
-			openai.WithToken(apiKey),
-			openai.WithModel("gpt-4-turbo-preview"),
-		)
-	default:
-		model, err = openai.New(openai.WithToken(apiKey))
+func NewClient(opts *Options) (*Client, error) {
+	if opts == nil {
+		opts = &Options{
+			Model:       "gpt-3.5-turbo",
+			Temperature: 0.7,
+			MaxTokens:   2000,
+		}
 	}
 
+	llm, err := openai.New(
+		openai.WithModel(opts.Model),
+	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create OpenAI client: %w", err)
 	}
 
 	return &Client{
-		model: model,
+		llm: llm,
 	}, nil
 }
 
-func (c *Client) SendMessage(ctx context.Context, prompt string) (string, error) {
-	msg := llms.TextParts(llms.ChatMessageTypeHuman, prompt)
+func (c *Client) Chat(ctx context.Context, content string) (string, error) {
+	msgs := []llms.MessageContent{
+		llms.TextParts("human", content),
+	}
 
-	completion, err := c.model.GenerateContent(
-		ctx,
-		[]llms.MessageContent{msg},
-		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
-			// For now we're not using streaming, but it's ready to be implemented
-			return nil
-		}),
-	)
-
+	resp, err := c.llm.GenerateContent(ctx, msgs)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("chat failed: %w", err)
 	}
 
-	if len(completion.Choices) > 0 {
-		return completion.Choices[0].Content, nil
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no response choices returned")
 	}
 
-	return "", nil
+	return resp.Choices[0].Content, nil
 }
 
-func (c *Client) SendMessageStream(ctx context.Context, prompt string, handler StreamHandler) error {
-	msg := llms.TextParts(llms.ChatMessageTypeHuman, prompt)
+func (c *Client) ChatStream(ctx context.Context, content string, callback func(chunk []byte) error) error {
+	msgs := []llms.MessageContent{
+		llms.TextParts("human", content),
+	}
 
-	_, err := c.model.GenerateContent(
-		ctx,
-		[]llms.MessageContent{msg},
+	_, err := c.llm.GenerateContent(ctx, msgs,
 		llms.WithStreamingFunc(func(ctx context.Context, chunk []byte) error {
-			handler(string(chunk))
-			return nil
+			return callback(chunk)
 		}),
 	)
+	if err != nil {
+		return fmt.Errorf("streaming chat failed: %w", err)
+	}
 
-	return err
+	return nil
 }
-
