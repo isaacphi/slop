@@ -18,7 +18,3 @@ var interactiveCmd = &cobra.Command{
 		return err
 	},
 }
-
-func newInteractiveCmd() *cobra.Command {
-	return interactiveCmd
-}

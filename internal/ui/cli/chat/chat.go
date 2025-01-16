@@ -11,5 +11,5 @@ var ChatCmd = &cobra.Command{
 }
 
 func init() {
-	ChatCmd.AddCommand(newInteractiveCmd())
+	ChatCmd.AddCommand(interactiveCmd)
 }

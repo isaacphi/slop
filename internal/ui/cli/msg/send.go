@@ -38,8 +38,8 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Create the repositories and services
-		repo := sqliteRepo.NewConversationRepository(db)
-		chatService := service.NewChatService(repo)
+		conversationRepo := sqliteRepo.NewConversationRepository(db)
+		chatService := service.NewChatService(conversationRepo)
 
 		// Create a new conversation
 		conversation, err := chatService.NewConversation(cmd.Context())
@@ -60,8 +60,3 @@ var sendCmd = &cobra.Command{
 		return nil
 	},
 }
-
-func newSendCmd() *cobra.Command {
-	return sendCmd
-}
-
