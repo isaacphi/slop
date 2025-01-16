@@ -13,15 +13,29 @@ const (
 )
 
 type Conversation struct {
-	ID       uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primary_key"`
+	ID       uuid.UUID `gorm:"type:uuid;primary_key"`
 	Messages []Message
 	gorm.Model
 }
 
 type Message struct {
-	ID             uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primary_key"`
+	ID             uuid.UUID `gorm:"type:uuid;primary_key"`
 	ConversationID uuid.UUID `gorm:"type:uuid"`
 	Role           Role      `gorm:"type:text"`
 	Content        string
 	gorm.Model
+}
+
+func (c *Conversation) BeforeCreate(tx *gorm.DB) (err error) {
+	if c.ID == uuid.Nil {
+		c.ID = uuid.New()
+	}
+	return
+}
+
+func (m *Message) BeforeCreate(tx *gorm.DB) (err error) {
+	if m.ID == uuid.Nil {
+		m.ID = uuid.New()
+	}
+	return
 }
