@@ -19,14 +19,14 @@ var sendCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load the configuration
-		cfg, err := config.Load()
+		cfg, err := config.New(true)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 		fmt.Println("Config:", cfg)
 
 		// Initialize the database connection
-		db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open(cfg.GetString("DBPath")), &gorm.Config{})
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
