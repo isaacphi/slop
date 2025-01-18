@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -115,13 +116,19 @@ func New(verbose bool) (*Config, error) {
 	return c, nil
 }
 
-// loadDefaults loads the default configuration from the embedded defaults file
+// loadDefaults loads the default configuration from embedded defaults
 func (c *Config) loadDefaults() error {
-	defaultsPath := filepath.Join("internal", "config", "defaults.wheel.yaml")
-	c.v.SetConfigFile(defaultsPath)
-	if err := c.v.ReadInConfig(); err != nil {
-		return fmt.Errorf("could not read defaults file: %w", err)
+	v := viper.New()
+	v.SetConfigType("yaml") // Required for reading from bytes
+	if err := v.ReadConfig(bytes.NewBuffer(defaultConfig)); err != nil {
+		return fmt.Errorf("could not read defaults: %w", err)
 	}
+
+	// Merge defaults into main config
+	if err := c.mergeConfig(v.AllSettings()); err != nil {
+		return fmt.Errorf("could not merge defaults: %w", err)
+	}
+
 	return nil
 }
 
