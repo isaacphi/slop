@@ -17,7 +17,8 @@ var MsgCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		fmt.Println("Config:", cfg)
+
+		cfg.PrintConfig()
 		return nil
 	},
 }

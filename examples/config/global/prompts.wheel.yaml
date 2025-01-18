@@ -3,3 +3,5 @@ prompts:
   - "Hello! How can I assist you today?"
   - "What would you like me to help you with?"
 maxTokens: 16000
+models:
+  - "gpt-5"

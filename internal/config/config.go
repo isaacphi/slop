@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 /*
@@ -204,9 +206,28 @@ func (c *Config) mergeConfig(settings map[string]interface{}) error {
 		// Handle different types
 		switch existingVal := existing.(type) {
 		case []interface{}:
-			// For slices, append new values
+			// For slices, append new values and remove duplicates
 			if newSlice, ok := value.([]interface{}); ok {
-				combined := append(existingVal, newSlice...)
+				// Create a map to track unique values
+				seen := make(map[interface{}]bool)
+				combined := make([]interface{}, 0)
+
+				// Add existing values
+				for _, v := range existingVal {
+					if !seen[v] {
+						seen[v] = true
+						combined = append(combined, v)
+					}
+				}
+
+				// Add new values
+				for _, v := range newSlice {
+					if !seen[v] {
+						seen[v] = true
+						combined = append(combined, v)
+					}
+				}
+
 				c.v.Set(key, combined)
 			} else {
 				return fmt.Errorf("type mismatch for key %s: expected slice, got %T", key, value)
@@ -274,17 +295,78 @@ func (c *Config) trackSources(sources map[string][]configSource, settings map[st
 	}
 }
 
+// PrintConfig prints the final merged configuration
+func (c *Config) PrintConfig() {
+	fmt.Println("CONFIG:")
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	settings := c.v.AllSettings()
+
+	// Convert to JSON for consistent formatting
+	jsonBytes, err := json.MarshalIndent(settings, "", "  ")
+	if err != nil {
+		log.Printf("Error marshaling config: %v", err)
+		return
+	}
+
+	// Convert back to interface{} for YAML marshal
+	var out interface{}
+	if err := json.Unmarshal(jsonBytes, &out); err != nil {
+		log.Printf("Error unmarshaling config: %v", err)
+		return
+	}
+
+	// Convert to YAML for better readability
+	yamlBytes, err := yaml.Marshal(out)
+	if err != nil {
+		log.Printf("Error converting to YAML: %v", err)
+		return
+	}
+
+	// Print final config, but redact sensitive values
+	lines := strings.Split(string(yamlBytes), "\n")
+	for _, line := range lines {
+		if strings.Contains(strings.ToLower(line), "key") ||
+			strings.Contains(strings.ToLower(line), "secret") ||
+			strings.Contains(strings.ToLower(line), "password") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				fmt.Printf("%s: [REDACTED]\n", parts[0])
+				continue
+			}
+		}
+		fmt.Println(line)
+	}
+}
+
 func (c *Config) logConfigSources(sources map[string][]configSource) {
 	log.Println("Configuration values and their sources:")
 	for key, sourceList := range sources {
 		log.Printf("Key: %s", key)
-		for _, source := range sourceList {
-			if strings.Contains(strings.ToLower(key), "key") || // Catches API keys
-				strings.Contains(strings.ToLower(key), "secret") || // Catches secrets
-				strings.Contains(strings.ToLower(key), "password") { // Catches passwords
-				log.Printf("  - [REDACTED] from %s", source.source)
+
+		// For lists and maps, show all sources
+		value := c.v.Get(key)
+		switch value.(type) {
+		case []interface{}, map[string]interface{}:
+			// Show all sources for lists and maps as they contribute to final value
+			for _, source := range sourceList {
+				if strings.Contains(strings.ToLower(key), "key") ||
+					strings.Contains(strings.ToLower(key), "secret") ||
+					strings.Contains(strings.ToLower(key), "password") {
+					log.Printf("  - [REDACTED] from %s", source.source)
+				} else {
+					log.Printf("  - %v from %s", source.value, source.source)
+				}
+			}
+		default:
+			// For scalar values, only show the final value
+			if strings.Contains(strings.ToLower(key), "key") ||
+				strings.Contains(strings.ToLower(key), "secret") ||
+				strings.Contains(strings.ToLower(key), "password") {
+				log.Printf("  - [REDACTED] from %s", sourceList[len(sourceList)-1].source)
 			} else {
-				log.Printf("  - %v from %s", source.value, source.source)
+				log.Printf("  - %v from %s", c.v.Get(key), sourceList[len(sourceList)-1].source)
 			}
 		}
 	}

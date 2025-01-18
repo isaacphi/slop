@@ -23,7 +23,7 @@ var sendCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		fmt.Println("Config:", cfg)
+		cfg.PrintConfig()
 
 		// Initialize the database connection
 		db, err := gorm.Open(sqlite.Open(cfg.GetString("DBPath")), &gorm.Config{})
