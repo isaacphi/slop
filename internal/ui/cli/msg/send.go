@@ -25,7 +25,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Initialize the database connection
-		db, err := gorm.Open(sqlite.Open(cfg.GetString("DBPath")), &gorm.Config{})
+		db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}

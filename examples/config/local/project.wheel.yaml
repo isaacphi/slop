@@ -1,5 +1,0 @@
-# ./.wheel/project.wheel.yaml
-mainModel: "claude-3-opus-20240229"  # Override global setting
-maxTokens: 32000  # Project needs more tokens
-prompts:
-  - "I'm ready to help with your development tasks!"

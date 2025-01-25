@@ -1,7 +1,0 @@
-# ~/.config/wheel/models.wheel.yaml
-models:
-  - "gpt-4"
-  - "gpt-3.5-turbo"
-  - "claude-3-opus-20240229"
-mainModel: "gpt-4"
-temperature: 0.8
