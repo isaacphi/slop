@@ -104,8 +104,6 @@ func New(verbose bool) (*ConfigSchema, error) {
 	schema.sources = c.sources
 	schema.defaults = getDefaultsMap()
 
-	fmt.Println(c.sources)
-
 	return schema, nil
 }
 
@@ -168,7 +166,6 @@ func (c *Config) loadConfigs() error {
 		}
 
 		for _, f := range files {
-			fmt.Println("file", f)
 			v := viper.New()
 			v.SetConfigFile(f)
 			if err := v.ReadInConfig(); err != nil {

@@ -7,20 +7,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var ConfigCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Manage configuration",
-	Long:  `Read, write, or edit local and global wheel configuration.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.New(true)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+var (
+	includeSources bool
 
-		cfg.PrintConfig(true, true)
+	ConfigCmd = &cobra.Command{
+		Use:   "config",
+		Short: "Manage configuration",
+		Long:  `Read, write, or edit local and global wheel configuration.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.New(true)
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
 
-		return nil
-	},
+			cfg.PrintConfig(includeSources)
+
+			return nil
+		},
+	}
+)
+
+func init() {
+	ConfigCmd.Flags().BoolVarP(&includeSources, "include-sources", "s", false, "Show source file for each configuration value")
 }
 
-func init() {}
