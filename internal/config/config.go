@@ -86,7 +86,7 @@ func New(verbose bool) (*ConfigSchema, error) {
 	known := GetKnownKeys()
 	var unknown []string
 	for _, key := range c.v.AllKeys() {
-		if !known[key] {
+		if !IsKnownKey(known, key) {
 			unknown = append(unknown, key)
 		}
 	}
@@ -227,7 +227,6 @@ func findConfigFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
-// validateConfig creates and validates a ConfigSchema
 func (c *Config) validateConfig() (*ConfigSchema, error) {
 	var schema ConfigSchema
 	if err := c.v.Unmarshal(&schema); err != nil {
@@ -242,15 +241,19 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	// Additional custom validations
 	if schema.MainModel != "" {
 		found := false
-		for _, model := range schema.Models {
-			if model == schema.MainModel {
+		for key := range schema.Models {
+			if key == schema.MainModel {
 				found = true
 				break
 			}
 		}
 		if !found {
+			var availableModels []string
+			for key := range schema.Models {
+				availableModels = append(availableModels, key)
+			}
 			return nil, fmt.Errorf("mainModel %q must be one of configured models: %v",
-				schema.MainModel, schema.Models)
+				schema.MainModel, availableModels)
 		}
 	}
 
@@ -258,86 +261,47 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 }
 
 func (c *Config) mergeConfig(settings map[string]interface{}) error {
-	for key, value := range settings {
-		existing := c.v.Get(key)
-		if existing == nil {
-			c.v.Set(key, value)
-			continue
-		}
+	// Convert settings to flat map with dot notation
+	flat := flattenMap(settings, "")
 
-		switch existingVal := existing.(type) {
-		case []interface{}:
-			if newSlice, ok := value.([]interface{}); ok {
-				seen := make(map[interface{}]bool)
-				combined := make([]interface{}, 0)
-
-				// Add existing values
-				for _, v := range existingVal {
-					if !seen[v] {
-						seen[v] = true
-						combined = append(combined, v)
-					}
-				}
-
-				// Add new values
-				for _, v := range newSlice {
-					if !seen[v] {
-						seen[v] = true
-						combined = append(combined, v)
-					}
-				}
-
-				c.v.Set(key, combined)
-			} else {
-				return fmt.Errorf("type mismatch for key %s: expected slice, got %T", key, value)
-			}
-
-		case map[string]interface{}:
-			if newMap, ok := value.(map[string]interface{}); ok {
-				merged := mergeMapRecursive(existingVal, newMap)
-				c.v.Set(key, merged)
-			} else {
-				return fmt.Errorf("type mismatch for key %s: expected map, got %T", key, value)
-			}
-
-		default:
-			c.v.Set(key, value)
-		}
+	// Set each value
+	for key, value := range flat {
+		c.v.Set(key, value)
 	}
 	return nil
 }
 
-// mergeMapRecursive recursively merges two maps
-func mergeMapRecursive(existing, new map[string]interface{}) map[string]interface{} {
+// flattenMap converts a nested map to a flat map with dot notation
+func flattenMap(m map[string]interface{}, prefix string) map[string]interface{} {
 	result := make(map[string]interface{})
 
-	// Copy existing map
-	for k, v := range existing {
-		result[k] = v
-	}
-
-	// Merge new map
-	for k, v := range new {
-		if existing[k] == nil {
-			result[k] = v
-			continue
+	for k, v := range m {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
 		}
 
-		switch existingVal := existing[k].(type) {
+		switch val := v.(type) {
 		case map[string]interface{}:
-			if newVal, ok := v.(map[string]interface{}); ok {
-				result[k] = mergeMapRecursive(existingVal, newVal)
-			} else {
-				result[k] = v
+			// Recursively flatten nested maps
+			flattened := flattenMap(val, key)
+			for fk, fv := range flattened {
+				result[fk] = fv
 			}
-		case []interface{}:
-			if newVal, ok := v.([]interface{}); ok {
-				result[k] = append(existingVal, newVal...)
-			} else {
-				result[k] = v
+		case map[interface{}]interface{}:
+			// Convert to map[string]interface{} and recurse
+			stringMap := make(map[string]interface{})
+			for mk, mv := range val {
+				if skeyStr, ok := mk.(string); ok {
+					stringMap[skeyStr] = mv
+				}
+			}
+			flattened := flattenMap(stringMap, key)
+			for fk, fv := range flattened {
+				result[fk] = fv
 			}
 		default:
-			result[k] = v
+			result[key] = v
 		}
 	}
 

@@ -1,16 +1,21 @@
 package config
 
-// ConfigSchema defines the configuration structure
+type Model struct {
+	Provider string `mapstructure:"provider"`
+	Name     string `mapstructure:"name"`
+}
+
 type ConfigSchema struct {
-	Models      []string `mapstructure:"models"`
-	MainModel   string   `mapstructure:"mainModel"`
-	Prompts     []string `mapstructure:"prompts"`
-	MaxTokens   int      `mapstructure:"maxTokens"`
-	Temperature float64  `mapstructure:"temperature"`
-	LLMKey      string   `mapstructure:"llm_key"`
-	DBPath      string   `mapstructure:"DBPath"`
+	Models      map[string]Model             `mapstructure:"models"`
+	MainModel   string                       `mapstructure:"mainModel"`
+	Theme       map[string]map[string]string `mapstructure:"theme"`
+	MaxTokens   int                          `mapstructure:"maxTokens"`
+	Temperature float64                      `mapstructure:"temperature"`
+	LLMKey      string                       `mapstructure:"llm_key"`
+	DBPath      string                       `mapstructure:"DBPath"`
 
 	// Internal fields for printing
 	sources  map[string][]configSource
 	defaults map[string]interface{}
 }
+
