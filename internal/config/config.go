@@ -20,10 +20,11 @@ Config System Design:
 This configuration system implements a hierarchical config with the following precedence
 (highest to lowest priority):
 
-1. Environment variables (for secrets and crucial overrides)
+1. Environment variables for secrets
 2. Local project config (.wheel/*.wheel.{yaml,json})
 3. Global user config ($XDG_CONFIG_HOME/wheel/*.wheel.{yaml,json})
 4. Default values (from defaults.wheel.yaml)
+5. JSON and YAML support
 
 The system supports:
 - Multiple config files in each directory, merged alphabetically

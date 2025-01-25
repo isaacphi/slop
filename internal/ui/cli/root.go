@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/isaacphi/wheel/internal/ui/cli/chat"
+	"github.com/isaacphi/wheel/internal/ui/cli/config"
 	"github.com/isaacphi/wheel/internal/ui/cli/msg"
 	"github.com/spf13/cobra"
 )
@@ -25,6 +26,7 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(
 		chat.ChatCmd,
+		config.ConfigCmd,
 		msg.MsgCmd,
 	)
 
