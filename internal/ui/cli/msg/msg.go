@@ -6,8 +6,7 @@ import (
 
 var MsgCmd = &cobra.Command{
 	Use:   "msg",
-	Short: "Send messages",
-	Long:  `Send messages to an LLM.`,
+	Short: "Send messages to an LLM",
 }
 
 func init() {

@@ -11,9 +11,10 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "wheel",
-	Short: "Wheel is a chat interface for LLMs",
-	Long:  `A CLI and TUI interface for interacting with LLMs and managing conversation history.`,
+	Use:               "wheel",
+	Short:             "Wheel is a chat interface for LLMs",
+	Long:              `A CLI and TUI interface for interacting with LLMs and managing conversation history.`,
+	DisableAutoGenTag: true,
 }
 
 func Execute() {
@@ -24,6 +25,7 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.AddCommand(
 		chat.ChatCmd,
 		config.ConfigCmd,

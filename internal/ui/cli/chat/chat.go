@@ -9,7 +9,6 @@ import (
 var ChatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "Start an interactive chat session",
-	Long:  `Start or manage interactive chat sessions.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		p := tea.NewProgram(tui.New(),
 			tea.WithAltScreen(),
