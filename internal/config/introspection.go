@@ -150,12 +150,12 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 		} else {
 			fmt.Printf("%s%s: %v", strings.Repeat("  ", indent), key, v.Interface())
 		}
-		s.printSourceInfo(key, v.Interface(), includeSources)
+		s.printSourceInfo(key, includeSources)
 		fmt.Println()
 	}
 }
 
-func (s *ConfigSchema) printSourceInfo(key string, value interface{}, includeSources bool) {
+func (s *ConfigSchema) printSourceInfo(key string, includeSources bool) {
 	if !includeSources {
 		return
 	}
