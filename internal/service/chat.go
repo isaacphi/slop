@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 
+	"github.com/isaacphi/wheel/internal/config"
 	"github.com/isaacphi/wheel/internal/domain"
 	"github.com/isaacphi/wheel/internal/llm"
 	"github.com/isaacphi/wheel/internal/repository"
@@ -17,22 +17,23 @@ type ChatService struct {
 	llm      *llm.Client
 }
 
-func NewChatService(repo repository.ConversationRepository) *ChatService {
-	llmClient, err := llm.NewClient(nil)
+func NewChatService(repo repository.ConversationRepository, cfg *config.ConfigSchema) (*ChatService, error) {
+	llmClient, err := llm.NewClient(cfg)
 	if err != nil {
-		log.Fatalf("failed to create LLM client: %v", err)
+		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
 	return &ChatService{
 		convRepo: repo,
 		llm:      llmClient,
-	}
+	}, nil
 }
 
 func (s *ChatService) SendMessage(ctx context.Context, convID uuid.UUID, content string) (*domain.Message, error) {
+	modelCfg := s.llm.GetConfig()
 	userMsg := &domain.Message{
 		ConversationID: convID,
-		Role:           "human",
+		Role:           domain.RoleHuman,
 		Content:        content,
 	}
 
@@ -43,8 +44,10 @@ func (s *ChatService) SendMessage(ctx context.Context, convID uuid.UUID, content
 
 	aiMsg := &domain.Message{
 		ConversationID: convID,
-		Role:           "assistant",
+		Role:           domain.RoleAssistant,
 		Content:        response,
+		ModelName:      modelCfg.Name,
+		Provider:       modelCfg.Provider,
 	}
 
 	if err := s.convRepo.AddMessage(ctx, convID, userMsg); err != nil {
@@ -63,9 +66,10 @@ func (s *ChatService) NewConversation(ctx context.Context) (*domain.Conversation
 }
 
 func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, content string, callback func(chunk string) error) error {
+	modelCfg := s.llm.GetConfig()
 	userMsg := &domain.Message{
 		ConversationID: convID,
-		Role:           "human",
+		Role:           domain.RoleHuman,
 		Content:        content,
 	}
 
@@ -95,8 +99,10 @@ func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, c
 
 	aiMsg := &domain.Message{
 		ConversationID: convID,
-		Role:           "assistant",
+		Role:           domain.RoleAssistant,
 		Content:        fullResponse,
+		ModelName:      modelCfg.Name,
+		Provider:       modelCfg.Provider,
 	}
 
 	if err := s.convRepo.AddMessage(ctx, convID, aiMsg); err != nil {

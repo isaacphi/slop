@@ -23,6 +23,8 @@ type Message struct {
 	ConversationID uuid.UUID `gorm:"type:uuid"`
 	Role           Role      `gorm:"type:text"`
 	Content        string
+	ModelName      string `gorm:"type:text"`
+	Provider       string `gorm:"type:text"`
 	gorm.Model
 }
 

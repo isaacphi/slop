@@ -38,7 +38,10 @@ var sendCmd = &cobra.Command{
 
 		// Create the repositories and services
 		conversationRepo := sqliteRepo.NewConversationRepository(db)
-		chatService := service.NewChatService(conversationRepo)
+		chatService, err := service.NewChatService(conversationRepo, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create chat service: %w", err)
+		}
 
 		// Create a new conversation
 		conversation, err := chatService.NewConversation(cmd.Context())
@@ -59,3 +62,4 @@ var sendCmd = &cobra.Command{
 		return nil
 	},
 }
+

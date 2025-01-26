@@ -239,10 +239,10 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	}
 
 	// Additional custom validations
-	if schema.MainModel != "" {
+	if schema.ActiveModel != "" {
 		found := false
 		for key := range schema.Models {
-			if key == schema.MainModel {
+			if key == schema.ActiveModel {
 				found = true
 				break
 			}
@@ -253,7 +253,7 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 				availableModels = append(availableModels, key)
 			}
 			return nil, fmt.Errorf("mainModel %q must be one of configured models: %v",
-				schema.MainModel, availableModels)
+				schema.ActiveModel, availableModels)
 		}
 	}
 

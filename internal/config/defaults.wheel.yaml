@@ -1,10 +1,11 @@
 models:
-  gpt4:
+  chatgpt:
     provider: "openai"
-    name: "gpt-4"
-  gpt35:
-    provider: "openai"
-    name: "gpt-3.5-turbo"
+    name: "gpt-4o"
+  claude:
+    provider: "anthropic"
+    name: "claude-3-5-sonnet-latest"
+activeModel: "claude"
 theme:
   light:
     background: "#ffffff"
