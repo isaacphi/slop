@@ -87,11 +87,9 @@ func New(verbose bool) (*ConfigSchema, error) {
 	var unknown []string
 	for _, key := range c.v.AllKeys() {
 		if !IsKnownKey(known, key) {
+			log.Printf("Warning: Found configuration value not in schema: %v", key)
 			unknown = append(unknown, key)
 		}
-	}
-	if len(unknown) > 0 {
-		log.Printf("Warning: Found configuration values not in schema: %v", unknown)
 	}
 
 	// Validate and create type-safe config
