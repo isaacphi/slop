@@ -62,25 +62,25 @@ var MsgCmd = &cobra.Command{
 			return fmt.Errorf("no message provided")
 		}
 
-		// Get conversation ID
-		var conversationID uuid.UUID
+		// Get thread ID
+		var threadID uuid.UUID
 		if continueFlag {
-			conv, err := chatService.GetActiveConversation(ctx)
+			thread, err := chatService.GetActiveThread(ctx)
 			if err != nil {
 				return err
 			}
-			conversationID = conv.ID
+			threadID = thread.ID
 		} else {
-			// Create new conversation
-			conv, err := chatService.NewConversation(ctx)
+			// Create new thread
+			thread, err := chatService.NewThread(ctx)
 			if err != nil {
-				return fmt.Errorf("failed to create conversation: %w", err)
+				return fmt.Errorf("failed to create thread: %w", err)
 			}
-			conversationID = conv.ID
+			threadID = thread.ID
 		}
 
 		// Send initial message
-		if err := sendMessage(ctx, chatService, conversationID, message); err != nil {
+		if err := sendMessage(ctx, chatService, threadID, message, false); err != nil {
 			return err
 		}
 
@@ -88,7 +88,7 @@ var MsgCmd = &cobra.Command{
 		if followupFlag {
 			reader := bufio.NewReader(os.Stdin)
 			for {
-				fmt.Print("\nEnter followup (Ctrl+C/D to exit): ")
+				fmt.Print("\nYou: ")
 				message, err := reader.ReadString('\n')
 				if err == io.EOF {
 					break
@@ -102,7 +102,7 @@ var MsgCmd = &cobra.Command{
 					continue
 				}
 
-				if err := sendMessage(ctx, chatService, conversationID, message); err != nil {
+				if err := sendMessage(ctx, chatService, threadID, message, true); err != nil {
 					return err
 				}
 			}
@@ -113,7 +113,7 @@ var MsgCmd = &cobra.Command{
 }
 
 func init() {
-	MsgCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent conversation")
+	MsgCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent thread")
 	MsgCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
 	MsgCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
 	MsgCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
@@ -138,14 +138,14 @@ func initializeServices() (*service.ChatService, error) {
 	}
 
 	// AutoMigrate
-	err = db.AutoMigrate(&domain.Conversation{}, &domain.Message{})
+	err = db.AutoMigrate(&domain.Thread{}, &domain.Message{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Create the repositories and services
-	conversationRepo := sqliteRepo.NewConversationRepository(db)
-	chatService, err := service.NewChatService(conversationRepo, cfg)
+	threadRepo := sqliteRepo.NewThreadRepository(db)
+	chatService, err := service.NewChatService(threadRepo, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chat service: %w", err)
 	}
@@ -153,16 +153,18 @@ func initializeServices() (*service.ChatService, error) {
 	return chatService, nil
 }
 
-func sendMessage(ctx context.Context, chatService *service.ChatService, conversationID uuid.UUID, message string) error {
-	fmt.Printf("You: %s\n", message)
-	fmt.Print("Assistant: ")
+func sendMessage(ctx context.Context, chatService *service.ChatService, threadID uuid.UUID, message string, isFollowup bool) error {
+	if !isFollowup {
+		fmt.Printf("You: %s\n", message)
+	}
+	fmt.Print("Slop: ")
 
 	errCh := make(chan error, 1)
 
 	if noStreamFlag {
 		// Use non-streaming version
 		go func() {
-			resp, err := chatService.SendMessage(ctx, conversationID, message)
+			resp, err := chatService.SendMessage(ctx, threadID, message)
 			if err != nil {
 				errCh <- err
 				return
@@ -173,7 +175,7 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, conversa
 	} else {
 		// Use streaming version (default)
 		go func() {
-			errCh <- chatService.SendMessageStream(ctx, conversationID, message, func(chunk string) error {
+			errCh <- chatService.SendMessageStream(ctx, threadID, message, func(chunk string) error {
 				fmt.Print(chunk)
 				return nil
 			})

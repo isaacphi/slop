@@ -14,80 +14,90 @@ import (
 )
 
 type ChatService struct {
-	convRepo repository.ConversationRepository
-	llm      *llm.Client
+	threadRepo repository.ThreadRepository
+	llm        *llm.Client
 }
 
-func NewChatService(repo repository.ConversationRepository, cfg *config.ConfigSchema) (*ChatService, error) {
+func NewChatService(repo repository.ThreadRepository, cfg *config.ConfigSchema) (*ChatService, error) {
 	llmClient, err := llm.NewClient(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
 	return &ChatService{
-		convRepo: repo,
-		llm:      llmClient,
+		threadRepo: repo,
+		llm:        llmClient,
 	}, nil
 }
 
-func (s *ChatService) SendMessage(ctx context.Context, convID uuid.UUID, content string) (*domain.Message, error) {
-	modelCfg := s.llm.GetConfig()
-	userMsg := &domain.Message{
-		ConversationID: convID,
-		Role:           domain.RoleHuman,
-		Content:        content,
+func (s *ChatService) SendMessage(ctx context.Context, threadID uuid.UUID, content string) (*domain.Message, error) {
+	thread, err := s.threadRepo.GetByID(ctx, threadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
-	response, err := s.llm.Chat(ctx, content)
+	modelCfg := s.llm.GetConfig()
+	userMsg := &domain.Message{
+		ThreadID: threadID,
+		Role:     domain.RoleHuman,
+		Content:  content,
+	}
+
+	response, err := s.llm.Chat(ctx, content, thread.Messages)
 	if err != nil {
 		return nil, err
 	}
 
 	aiMsg := &domain.Message{
-		ConversationID: convID,
-		Role:           domain.RoleAssistant,
-		Content:        response,
-		ModelName:      modelCfg.Name,
-		Provider:       modelCfg.Provider,
+		ThreadID:  threadID,
+		Role:      domain.RoleAssistant,
+		Content:   response,
+		ModelName: modelCfg.Name,
+		Provider:  modelCfg.Provider,
 	}
 
-	if err := s.convRepo.AddMessage(ctx, convID, userMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, threadID, userMsg); err != nil {
 		return nil, err
 	}
-	if err := s.convRepo.AddMessage(ctx, convID, aiMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, threadID, aiMsg); err != nil {
 		return nil, err
 	}
 
 	return aiMsg, nil
 }
 
-func (s *ChatService) NewConversation(ctx context.Context) (*domain.Conversation, error) {
-	conv := &domain.Conversation{}
-	return conv, s.convRepo.Create(ctx, conv)
+func (s *ChatService) NewThread(ctx context.Context) (*domain.Thread, error) {
+	thread := &domain.Thread{}
+	return thread, s.threadRepo.Create(ctx, thread)
 }
 
-func (s *ChatService) GetActiveConversation(ctx context.Context) (*domain.Conversation, error) {
-	conv, err := s.convRepo.GetMostRecent(ctx)
+func (s *ChatService) GetActiveThread(ctx context.Context) (*domain.Thread, error) {
+	thread, err := s.threadRepo.GetMostRecent(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get most recent conversation: %w", err)
+		return nil, fmt.Errorf("failed to get most recent thread: %w", err)
 	}
-	return conv, nil
+	return thread, nil
 }
 
-func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, content string, callback func(chunk string) error) error {
+func (s *ChatService) SendMessageStream(ctx context.Context, threadID uuid.UUID, content string, callback func(chunk string) error) error {
+	thread, err := s.threadRepo.GetByID(ctx, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to get thread: %w", err)
+	}
+
 	modelCfg := s.llm.GetConfig()
 	userMsg := &domain.Message{
-		ConversationID: convID,
-		Role:           domain.RoleHuman,
-		Content:        content,
+		ThreadID: threadID,
+		Role:     domain.RoleHuman,
+		Content:  content,
 	}
 
-	if err := s.convRepo.AddMessage(ctx, convID, userMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, threadID, userMsg); err != nil {
 		return fmt.Errorf("failed to store user message: %w", err)
 	}
 
 	var fullResponse strings.Builder
-	err := s.llm.ChatStream(ctx, content, func(chunk []byte) error {
+	err = s.llm.ChatStream(ctx, content, thread.Messages, func(chunk []byte) error {
 		chunkStr := string(chunk)
 		fullResponse.WriteString(chunkStr)
 		if err := callback(chunkStr); err != nil {
@@ -100,14 +110,14 @@ func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, c
 	}
 
 	aiMsg := &domain.Message{
-		ConversationID: convID,
-		Role:           domain.RoleAssistant,
-		Content:        fullResponse.String(),
-		ModelName:      modelCfg.Name,
-		Provider:       modelCfg.Provider,
+		ThreadID:  threadID,
+		Role:      domain.RoleAssistant,
+		Content:   fullResponse.String(),
+		ModelName: modelCfg.Name,
+		Provider:  modelCfg.Provider,
 	}
 
-	if err := s.convRepo.AddMessage(ctx, convID, aiMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, threadID, aiMsg); err != nil {
 		return fmt.Errorf("failed to store AI message: %w", err)
 	}
 

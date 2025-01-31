@@ -12,25 +12,25 @@ const (
 	RoleAssistant Role = "assistant"
 )
 
-type Conversation struct {
+type Thread struct {
 	ID       uuid.UUID `gorm:"type:uuid;primary_key"`
 	Messages []Message
 	gorm.Model
 }
 
 type Message struct {
-	ID             uuid.UUID `gorm:"type:uuid;primary_key"`
-	ConversationID uuid.UUID `gorm:"type:uuid"`
-	Role           Role      `gorm:"type:text"`
-	Content        string
-	ModelName      string `gorm:"type:text"`
-	Provider       string `gorm:"type:text"`
+	ID        uuid.UUID `gorm:"type:uuid;primary_key"`
+	ThreadID  uuid.UUID `gorm:"type:uuid"`
+	Role      Role      `gorm:"type:text"`
+	Content   string
+	ModelName string `gorm:"type:text"`
+	Provider  string `gorm:"type:text"`
 	gorm.Model
 }
 
-func (c *Conversation) BeforeCreate(tx *gorm.DB) (err error) {
-	if c.ID == uuid.Nil {
-		c.ID = uuid.New()
+func (t *Thread) BeforeCreate(tx *gorm.DB) (err error) {
+	if t.ID == uuid.Nil {
+		t.ID = uuid.New()
 	}
 	return
 }

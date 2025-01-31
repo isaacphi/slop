@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/domain"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/openai"
@@ -50,15 +51,28 @@ func NewClient(cfg *config.ConfigSchema) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Chat(ctx context.Context, content string) (string, error) {
+func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
+	var history []llms.MessageContent
+	for _, msg := range messages {
+		var role llms.ChatMessageType
+		if msg.Role == domain.RoleAssistant {
+			role = llms.ChatMessageTypeAI
+		} else {
+			role = llms.ChatMessageTypeHuman
+		}
+		history = append(history, llms.TextParts(role, msg.Content))
+	}
+	return history
+}
+
+func (c *Client) Chat(ctx context.Context, content string, history []domain.Message) (string, error) {
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),
 		llms.WithMaxLength(c.config.MaxLength),
 	}
 
-	msgs := []llms.MessageContent{
-		llms.TextParts("human", content),
-	}
+	msgs := buildMessageHistory(history)
+	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
 
 	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
@@ -72,7 +86,7 @@ func (c *Client) Chat(ctx context.Context, content string) (string, error) {
 	return resp.Choices[0].Content, nil
 }
 
-func (c *Client) ChatStream(ctx context.Context, content string, callback func(chunk []byte) error) error {
+func (c *Client) ChatStream(ctx context.Context, content string, history []domain.Message, callback func(chunk []byte) error) error {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
@@ -83,9 +97,8 @@ func (c *Client) ChatStream(ctx context.Context, content string, callback func(c
 		llms.WithStreamingFunc(wrappedCallback),
 	}
 
-	msgs := []llms.MessageContent{
-		llms.TextParts("human", content),
-	}
+	msgs := buildMessageHistory(history)
+	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
 
 	_, err := c.llm.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
@@ -98,4 +111,3 @@ func (c *Client) ChatStream(ctx context.Context, content string, callback func(c
 func (c *Client) GetConfig() *config.Model {
 	return c.config
 }
-
