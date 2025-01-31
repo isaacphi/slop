@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/isaacphi/wheel/internal/config"
+	"github.com/isaacphi/slop/internal/config"
 	"github.com/spf13/cobra"
 )
 

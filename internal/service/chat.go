@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/isaacphi/wheel/internal/config"
-	"github.com/isaacphi/wheel/internal/domain"
-	"github.com/isaacphi/wheel/internal/llm"
-	"github.com/isaacphi/wheel/internal/repository"
+	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/llm"
+	"github.com/isaacphi/slop/internal/repository"
 
 	"github.com/google/uuid"
 )

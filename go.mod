@@ -1,4 +1,4 @@
-module github.com/isaacphi/wheel
+module github.com/isaacphi/slop
 
 go 1.22.0
 

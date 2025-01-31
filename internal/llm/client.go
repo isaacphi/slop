@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/isaacphi/wheel/internal/config"
+	"github.com/isaacphi/slop/internal/config"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/openai"

@@ -11,7 +11,7 @@ type model struct {
 
 func New() *model {
 	return &model{
-		message: "Welcome to Wheel! Press 'q' to quit.",
+		message: "Welcome to slop! Press 'q' to quit.",
 	}
 }
 

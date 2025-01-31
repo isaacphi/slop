@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"github.com/isaacphi/wheel/internal/domain"
-	"github.com/isaacphi/wheel/internal/repository"
+	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/repository"
 
 	"gorm.io/gorm"
 )

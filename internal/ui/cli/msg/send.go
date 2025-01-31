@@ -3,10 +3,10 @@ package msg
 import (
 	"fmt"
 
-	"github.com/isaacphi/wheel/internal/config"
-	"github.com/isaacphi/wheel/internal/domain"
-	sqliteRepo "github.com/isaacphi/wheel/internal/repository/sqlite"
-	"github.com/isaacphi/wheel/internal/service"
+	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/domain"
+	sqliteRepo "github.com/isaacphi/slop/internal/repository/sqlite"
+	"github.com/isaacphi/slop/internal/service"
 	"github.com/spf13/cobra"
 
 	"gorm.io/driver/sqlite"

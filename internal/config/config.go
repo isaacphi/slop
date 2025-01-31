@@ -19,9 +19,9 @@ This configuration system implements a hierarchical config with the following pr
 (highest to lowest priority):
 
 1. Environment variables for secrets
-2. Local project config (.wheel/*.wheel.{yaml,json})
-3. Global user config ($XDG_CONFIG_HOME/wheel/*.wheel.{yaml,json})
-4. Default values (from defaults.wheel.yaml)
+2. Local project config (.slop/*.slop.{yaml,json})
+3. Global user config ($XDG_CONFIG_HOME/slop/*.slop.{yaml,json})
+4. Default values (from defaults.slop.yaml)
 5. JSON and YAML support
 
 The system supports:
@@ -35,8 +35,8 @@ The system supports:
 
 Example:
 If you have these files:
-~/.config/wheel/models.wheel.yaml:  { models: ["gpt-4"] }
-./.wheel/models.wheel.yaml:         { models: ["claude"] }
+~/.config/slop/models.slop.yaml:  { models: ["gpt-4"] }
+./.slop/models.slop.yaml:         { models: ["claude"] }
 The result will be: { models: ["gpt-4", "claude"] }
 */
 
@@ -153,8 +153,8 @@ func (c *Config) loadConfigs() error {
 		}
 		xdgConfig = filepath.Join(home, ".config")
 	}
-	globalDir := filepath.Join(xdgConfig, "wheel")
-	localDir := ".wheel"
+	globalDir := filepath.Join(xdgConfig, "slop")
+	localDir := ".slop"
 
 	// Load files from both locations
 	for _, dir := range []string{globalDir, localDir} {
@@ -204,7 +204,7 @@ func (c *Config) loadConfigs() error {
 	return nil
 }
 
-// findConfigFiles returns all *.wheel.{yaml,json} files in a directory
+// findConfigFiles returns all *.slop.{yaml,json} files in a directory
 func findConfigFiles(dir string) ([]string, error) {
 	var files []string
 	entries, err := os.ReadDir(dir)
@@ -217,8 +217,8 @@ func findConfigFiles(dir string) ([]string, error) {
 			continue
 		}
 		name := entry.Name()
-		if strings.HasSuffix(name, "wheel.yaml") ||
-			strings.HasSuffix(name, "wheel.json") {
+		if strings.HasSuffix(name, "slop.yaml") ||
+			strings.HasSuffix(name, "slop.json") {
 			files = append(files, filepath.Join(dir, name))
 		}
 	}

@@ -2,7 +2,7 @@ package chat
 
 import (
 	"github.com/charmbracelet/bubbletea"
-	"github.com/isaacphi/wheel/internal/ui/tui"
+	"github.com/isaacphi/slop/internal/ui/tui"
 	"github.com/spf13/cobra"
 )
 

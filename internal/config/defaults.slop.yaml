@@ -13,4 +13,4 @@ theme:
   dark:
     background: "#000000"
     text: "#ffffff"
-dbPath: ".wheel/wheel.db"
+dbPath: ".slop/slop.db"

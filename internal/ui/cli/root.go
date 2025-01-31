@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isaacphi/wheel/internal/ui/cli/chat"
-	"github.com/isaacphi/wheel/internal/ui/cli/config"
-	"github.com/isaacphi/wheel/internal/ui/cli/msg"
+	"github.com/isaacphi/slop/internal/ui/cli/chat"
+	"github.com/isaacphi/slop/internal/ui/cli/config"
+	"github.com/isaacphi/slop/internal/ui/cli/msg"
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:               "wheel",
-	Short:             "Wheel is a chat interface for LLMs",
-	Long:              `A CLI and TUI interface for interacting with LLMs and managing conversation history.`,
+	Use:               "slop",
+	Short:             "For all your slop needs",
+	Long:              `A CLI and TUI interface for interacting with LLMs`,
 	DisableAutoGenTag: true,
 }
 
@@ -33,5 +33,5 @@ func init() {
 	)
 
 	// Here you would define your flags and configuration settings
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.wheel.yaml)")
+	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.slop.yaml)")
 }

@@ -2,5 +2,5 @@ package config
 
 import _ "embed"
 
-//go:embed defaults.wheel.yaml
+//go:embed defaults.slop.yaml
 var defaultConfig []byte
