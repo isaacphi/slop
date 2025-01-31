@@ -84,11 +84,9 @@ func New(verbose bool) (*ConfigSchema, error) {
 
 	// Check for unknown keys using schema
 	known := GetKnownKeys()
-	var unknown []string
 	for _, key := range c.v.AllKeys() {
 		if !IsKnownKey(known, key) {
 			log.Printf("Warning: Found configuration value not in schema: %v", key)
-			unknown = append(unknown, key)
 		}
 	}
 
