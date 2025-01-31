@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
@@ -65,6 +66,14 @@ func (s *ChatService) NewConversation(ctx context.Context) (*domain.Conversation
 	return conv, s.convRepo.Create(ctx, conv)
 }
 
+func (s *ChatService) GetActiveConversation(ctx context.Context) (*domain.Conversation, error) {
+	conv, err := s.convRepo.GetMostRecent(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get most recent conversation: %w", err)
+	}
+	return conv, nil
+}
+
 func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, content string, callback func(chunk string) error) error {
 	modelCfg := s.llm.GetConfig()
 	userMsg := &domain.Message{
@@ -77,8 +86,10 @@ func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, c
 		return fmt.Errorf("failed to store user message: %w", err)
 	}
 
+	var fullResponse strings.Builder
 	err := s.llm.ChatStream(ctx, content, func(chunk []byte) error {
 		chunkStr := string(chunk)
+		fullResponse.WriteString(chunkStr)
 		if err := callback(chunkStr); err != nil {
 			return err
 		}
@@ -88,19 +99,10 @@ func (s *ChatService) SendMessageStream(ctx context.Context, convID uuid.UUID, c
 		return fmt.Errorf("failed to stream AI response: %w", err)
 	}
 
-	fullResponse := ""
-	err = s.llm.ChatStream(ctx, content, func(chunk []byte) error {
-		fullResponse += string(chunk)
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to collect AI response: %w", err)
-	}
-
 	aiMsg := &domain.Message{
 		ConversationID: convID,
 		Role:           domain.RoleAssistant,
-		Content:        fullResponse,
+		Content:        fullResponse.String(),
 		ModelName:      modelCfg.Name,
 		Provider:       modelCfg.Provider,
 	}

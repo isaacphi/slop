@@ -22,9 +22,12 @@ func (r *conversationRepo) Create(ctx context.Context, conv *domain.Conversation
 	return r.db.WithContext(ctx).Create(conv).Error
 }
 
-func (r *conversationRepo) GetByID(ctx context.Context, id uint) (*domain.Conversation, error) {
+func (r *conversationRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Conversation, error) {
 	var conv domain.Conversation
 	if err := r.db.WithContext(ctx).Preload("Messages").First(&conv, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domain.NoConversationError{}
+		}
 		return nil, err
 	}
 	return &conv, nil
@@ -36,6 +39,17 @@ func (r *conversationRepo) List(ctx context.Context) ([]*domain.Conversation, er
 		return nil, err
 	}
 	return convs, nil
+}
+
+func (r *conversationRepo) GetMostRecent(ctx context.Context) (*domain.Conversation, error) {
+	var conv domain.Conversation
+	if err := r.db.WithContext(ctx).Order("created_at DESC").First(&conv).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domain.NoConversationError{}
+		}
+		return nil, err
+	}
+	return &conv, nil
 }
 
 func (r *conversationRepo) AddMessage(ctx context.Context, convID uuid.UUID, msg *domain.Message) error {

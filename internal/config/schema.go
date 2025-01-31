@@ -11,6 +11,7 @@ type ConfigSchema struct {
 	Models      map[string]Model             `mapstructure:"models"`
 	ActiveModel string                       `mapstructure:"activeModel"`
 	Theme       map[string]map[string]string `mapstructure:"theme"`
+	ActiveTheme string                       `mapstructure:"activeTheme"`
 	DBPath      string                       `mapstructure:"dbPath"`
 
 	// Internal fields for printing
