@@ -90,7 +90,6 @@ func (c *Client) ChatStream(ctx context.Context, content string, history []domai
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
-	fmt.Println("MaxTokens", c.config.MaxTokens)
 
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),

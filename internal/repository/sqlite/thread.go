@@ -110,3 +110,26 @@ func (r *threadRepo) FindByPartialID(ctx context.Context, partialID string) (*do
 	return &thread, nil
 }
 
+func (r *threadRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
+	// Get the IDs of the last 'count' messages
+	var messageIDs []uuid.UUID
+	if err := r.db.WithContext(ctx).
+		Model(&domain.Message{}).
+		Where("thread_id = ?", threadID).
+		Order("created_at DESC").
+		Limit(count).
+		Pluck("id", &messageIDs).Error; err != nil {
+		return err
+	}
+
+	// Delete the messages
+	if len(messageIDs) > 0 {
+		if err := r.db.WithContext(ctx).
+			Where("id IN ?", messageIDs).
+			Delete(&domain.Message{}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}

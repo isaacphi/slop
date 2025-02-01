@@ -178,3 +178,13 @@ func (s *ChatService) DeleteThread(ctx context.Context, threadID uuid.UUID) erro
 
 	return s.threadRepo.Delete(ctx, threadID)
 }
+
+// GetThreadMessages returns all messages in a thread
+func (s *ChatService) GetThreadMessages(ctx context.Context, threadID uuid.UUID) ([]domain.Message, error) {
+	return s.threadRepo.GetMessages(ctx, threadID)
+}
+
+// DeleteLastMessages deletes the specified number of most recent messages from a thread
+func (s *ChatService) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
+	return s.threadRepo.DeleteLastMessages(ctx, threadID, count)
+}
