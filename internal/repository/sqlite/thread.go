@@ -34,6 +34,23 @@ func (r *threadRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Thread,
 	return &thread, nil
 }
 
+func (r *threadRepo) Delete(ctx context.Context, id uuid.UUID) error {
+	// Start a transaction to ensure all related records are deleted
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Delete all messages associated with the thread
+		if err := tx.Where("thread_id = ?", id).Delete(&domain.Message{}).Error; err != nil {
+			return err
+		}
+
+		// Delete the thread itself
+		if err := tx.Delete(&domain.Thread{}, id).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
 func (r *threadRepo) List(ctx context.Context, limit int) ([]*domain.Thread, error) {
 	var threads []*domain.Thread
 	query := r.db.WithContext(ctx).Order("created_at DESC")

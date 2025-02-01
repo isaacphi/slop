@@ -168,3 +168,13 @@ func (s *ChatService) GetThreadSummary(ctx context.Context, thread *domain.Threa
 		Preview:      preview,
 	}, nil
 }
+
+// DeleteThread deletes a thread and all its messages
+func (s *ChatService) DeleteThread(ctx context.Context, threadID uuid.UUID) error {
+	// Check if thread exists first
+	if _, err := s.threadRepo.GetByID(ctx, threadID); err != nil {
+		return fmt.Errorf("failed to find thread: %w", err)
+	}
+
+	return s.threadRepo.Delete(ctx, threadID)
+}
