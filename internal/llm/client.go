@@ -68,7 +68,7 @@ func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
 func (c *Client) Chat(ctx context.Context, content string, history []domain.Message) (string, error) {
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),
-		llms.WithMaxLength(c.config.MaxLength),
+		llms.WithMaxTokens(c.config.MaxTokens),
 	}
 
 	msgs := buildMessageHistory(history)
@@ -90,10 +90,11 @@ func (c *Client) ChatStream(ctx context.Context, content string, history []domai
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
+	fmt.Println("MaxTokens", c.config.MaxTokens)
 
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),
-		llms.WithMaxLength(c.config.MaxLength),
+		llms.WithMaxTokens(c.config.MaxTokens),
 		llms.WithStreamingFunc(wrappedCallback),
 	}
 

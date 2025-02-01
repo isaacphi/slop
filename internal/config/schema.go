@@ -3,7 +3,7 @@ package config
 type Model struct {
 	Provider    string  `mapstructure:"provider"`
 	Name        string  `mapstructure:"name"`
-	MaxLength   int     `mapstructure:"maxLength"`
+	MaxTokens   int     `mapstructure:"MaxTokens"`
 	Temperature float64 `mapstructure:"temperature"`
 }
 

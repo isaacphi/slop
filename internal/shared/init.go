@@ -11,16 +11,34 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitializeChatService(modelOverride string) (*service.ChatService, error) {
-	// Load the configuration
-	cfg, err := config.New(false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
+// ServiceOptions holds the configuration options for service initialization
+type ServiceOptions struct {
+	Model       string  // Model override
+	MaxTokens   int     // Max tokens override
+	Temperature float64 // Temperature override
+}
+
+// InitializeChatService creates and initializes the chat service with all required dependencies
+func InitializeChatService(opts *ServiceOptions) (*service.ChatService, error) {
+	// Build runtime overrides from options
+	var overrides *config.RuntimeOverrides
+	if opts != nil {
+		overrides = &config.RuntimeOverrides{}
+		if opts.Model != "" {
+			overrides.ActiveModel = &opts.Model
+		}
+		if opts.MaxTokens > 0 {
+			overrides.MaxTokens = &opts.MaxTokens
+		}
+		if opts.Temperature > 0 {
+			overrides.Temperature = &opts.Temperature
+		}
 	}
 
-	// Override model if specified
-	if modelOverride != "" {
-		cfg.ActiveModel = modelOverride
+	// Load the configuration with overrides
+	cfg, err := config.NewConfigWithOverrides(overrides)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	// Initialize the database connection

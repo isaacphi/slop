@@ -1,10 +1,10 @@
 models:
-  chatgpt:
+  openai:
     provider: "openai"
-    name: "gpt-4o"
+    name: "gpt-4o-mini"
   claude:
     provider: "anthropic"
-    name: "claude-3-5-sonnet-latest"
+    name: "claude-3-5-haiku-latest"
 activeModel: "claude"
 theme:
   light:

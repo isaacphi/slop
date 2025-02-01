@@ -29,7 +29,6 @@ The system supports:
 - Automatic merging of lists (they combine)
 - Deep merging of maps
 - Override of scalar values
-- Verbose logging of where each config value originated
 - Schema validation of the final config
 - Easy addition of new environment variable mappings
 
@@ -66,7 +65,7 @@ var envVars = []envVarConfig{
 	{key: "llm_key", envVar: "ANTHROPIC_API_KEY", isSecret: true},
 }
 
-func New(verbose bool) (*ConfigSchema, error) {
+func New() (*ConfigSchema, error) {
 	c := &Config{
 		v:       viper.New(),
 		sources: make(map[string][]configSource),

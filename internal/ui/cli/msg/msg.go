@@ -17,10 +17,12 @@ import (
 )
 
 var (
-	continueFlag bool
-	followupFlag bool
-	modelFlag    string
-	noStreamFlag bool
+	continueFlag    bool
+	followupFlag    bool
+	modelFlag       string
+	noStreamFlag    bool
+	maxTokensFlag   int
+	temperatureFlag float64
 )
 
 var MsgCmd = &cobra.Command{
@@ -33,7 +35,12 @@ var MsgCmd = &cobra.Command{
 		defer cancel()
 
 		// Initialize services
-		chatService, err := shared.InitializeChatService("")
+		opts := &shared.ServiceOptions{
+			Model:       modelFlag,
+			MaxTokens:   maxTokensFlag,
+			Temperature: temperatureFlag,
+		}
+		chatService, err := shared.InitializeChatService(opts)
 		if err != nil {
 			return err
 		}
@@ -113,6 +120,8 @@ func init() {
 	MsgCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
 	MsgCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
 	MsgCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
+	MsgCmd.Flags().IntVar(&maxTokensFlag, "max-tokens", 0, "Override maximum length")
+	MsgCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
 }
 
 func sendMessage(ctx context.Context, chatService *service.ChatService, threadID uuid.UUID, message string, isFollowup bool) error {

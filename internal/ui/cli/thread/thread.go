@@ -25,7 +25,7 @@ var listCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List conversation threads",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := shared.InitializeChatService("")
+		chatService, err := shared.InitializeChatService(nil)
 		if err != nil {
 			return err
 		}
@@ -62,7 +62,7 @@ var viewCmd = &cobra.Command{
 	Short: "View messages in a thread",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := shared.InitializeChatService("")
+		chatService, err := shared.InitializeChatService(nil)
 		if err != nil {
 			return err
 		}

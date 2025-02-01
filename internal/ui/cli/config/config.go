@@ -14,7 +14,7 @@ var (
 		Use:   "config",
 		Short: "Manage configuration",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.New(true)
+			cfg, err := config.New()
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}
@@ -29,4 +29,3 @@ var (
 func init() {
 	ConfigCmd.Flags().BoolVarP(&includeSources, "include-sources", "s", false, "Show source file for each configuration value")
 }
-
