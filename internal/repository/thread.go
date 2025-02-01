@@ -17,4 +17,5 @@ type ThreadRepository interface {
 	FindByPartialID(ctx context.Context, partialID string) (*domain.Thread, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error
+	SetThreadSummary(ctx context.Context, threadId uuid.UUID, summary string) error
 }

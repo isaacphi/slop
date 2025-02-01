@@ -14,6 +14,7 @@ const (
 
 type Thread struct {
 	ID       uuid.UUID `gorm:"type:uuid;primary_key"`
+	Summary  string    `gorm:type:text`
 	Messages []Message
 	gorm.Model
 }

@@ -28,7 +28,7 @@ var listCmd = &cobra.Command{
 		fmt.Fprintln(w, "ID\tCreated\tMessages\tPreview")
 
 		for _, thread := range threads {
-			summary, err := chatService.GetThreadSummary(cmd.Context(), thread)
+			summary, err := chatService.GetThreadDetails(cmd.Context(), thread)
 			if err != nil {
 				return fmt.Errorf("failed to get thread summary: %w", err)
 			}

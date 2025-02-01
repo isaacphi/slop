@@ -41,13 +41,7 @@ func (r *threadRepo) Delete(ctx context.Context, id uuid.UUID) error {
 		if err := tx.Where("thread_id = ?", id).Delete(&domain.Message{}).Error; err != nil {
 			return err
 		}
-
-		// Delete the thread itself
-		if err := tx.Delete(&domain.Thread{}, id).Error; err != nil {
-			return err
-		}
-
-		return nil
+		return tx.Delete(&domain.Thread{}, id).Error
 	})
 }
 
@@ -132,4 +126,8 @@ func (r *threadRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID,
 	}
 
 	return nil
+}
+
+func (r *threadRepo) SetThreadSummary(ctx context.Context, threadId uuid.UUID, summary string) error {
+	return r.db.WithContext(ctx).Model(&domain.Thread{}).Where("id = ?", threadId).Update("summary", summary).Error
 }

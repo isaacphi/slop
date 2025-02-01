@@ -19,5 +19,5 @@ func init() {
 	viewCmd.Flags().IntVarP(&limitFlag, "limit", "n", 0, "Limit the number of messages to show (0 for all)")
 	deleteCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Delete without confirmation")
 
-	ThreadCmd.AddCommand(listCmd, viewCmd, deleteCmd)
+	ThreadCmd.AddCommand(listCmd, viewCmd, deleteCmd, summaryCmd)
 }

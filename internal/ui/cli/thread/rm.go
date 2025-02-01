@@ -26,9 +26,9 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// Show thread info and confirm deletion
-		summary, err := chatService.GetThreadSummary(cmd.Context(), thread)
+		summary, err := chatService.GetThreadDetails(cmd.Context(), thread)
 		if err != nil {
-			return fmt.Errorf("failed to get thread summary: %w", err)
+			return fmt.Errorf("failed to get thread details: %w", err)
 		}
 
 		fmt.Printf("About to delete thread %s:\n", summary.ID.String()[:8])
