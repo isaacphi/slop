@@ -58,10 +58,6 @@ func addKnowKeysByValue(prefix string, val interface{}, known map[string]bool) {
 				// For simple maps (like theme), allow any nested fields
 				wildcardKey := fmt.Sprintf("%s.*", key)
 				known[wildcardKey] = true
-				if field.Name == "Theme" {
-					known[fmt.Sprintf("%s.*.background", key)] = true
-					known[fmt.Sprintf("%s.*.text", key)] = true
-				}
 			}
 		}
 	}

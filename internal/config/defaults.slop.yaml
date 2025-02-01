@@ -6,11 +6,4 @@ models:
     provider: "anthropic"
     name: "claude-3-5-haiku-latest"
 activeModel: "claude"
-theme:
-  light:
-    background: "#ffffff"
-    text: "#000000"
-  dark:
-    background: "#000000"
-    text: "#ffffff"
 dbPath: ".slop/slop.db"
