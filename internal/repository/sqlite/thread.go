@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/domain"
@@ -33,9 +34,15 @@ func (r *threadRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Thread,
 	return &thread, nil
 }
 
-func (r *threadRepo) List(ctx context.Context) ([]*domain.Thread, error) {
+func (r *threadRepo) List(ctx context.Context, limit int) ([]*domain.Thread, error) {
 	var threads []*domain.Thread
-	if err := r.db.WithContext(ctx).Find(&threads).Error; err != nil {
+	query := r.db.WithContext(ctx).Order("created_at DESC")
+
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	if err := query.Find(&threads).Error; err != nil {
 		return nil, err
 	}
 	return threads, nil
@@ -64,3 +71,25 @@ func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID) ([]dom
 	}
 	return messages, nil
 }
+
+func (r *threadRepo) FindByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
+	var thread domain.Thread
+
+	// Convert the string to lowercase for case-insensitive comparison
+	partialID = strings.ToLower(partialID)
+
+	// Find threads where the ID starts with the partial ID
+	if err := r.db.WithContext(ctx).
+		Preload("Messages").
+		Where("LOWER(CAST(id AS TEXT)) LIKE ?", partialID+"%").
+		Order("created_at DESC").
+		First(&thread).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, domain.NoConversationError{}
+		}
+		return nil, err
+	}
+
+	return &thread, nil
+}
+

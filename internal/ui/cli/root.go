@@ -7,6 +7,7 @@ import (
 	"github.com/isaacphi/slop/internal/ui/cli/chat"
 	"github.com/isaacphi/slop/internal/ui/cli/config"
 	"github.com/isaacphi/slop/internal/ui/cli/msg"
+	"github.com/isaacphi/slop/internal/ui/cli/thread"
 	"github.com/spf13/cobra"
 )
 
@@ -30,8 +31,7 @@ func init() {
 		chat.ChatCmd,
 		config.ConfigCmd,
 		msg.MsgCmd,
+		thread.ThreadCmd,
 	)
-
-	// Here you would define your flags and configuration settings
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.slop.yaml)")
 }
+

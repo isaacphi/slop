@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
@@ -122,4 +123,48 @@ func (s *ChatService) SendMessageStream(ctx context.Context, threadID uuid.UUID,
 	}
 
 	return nil
+}
+
+// ListThreads returns a list of threads, optionally limited to a specific number
+func (s *ChatService) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
+	return s.threadRepo.List(ctx, limit)
+}
+
+// FindThreadByPartialID finds a thread by a partial ID string
+func (s *ChatService) FindThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
+	return s.threadRepo.FindByPartialID(ctx, partialID)
+}
+
+// GetThreadSummary returns a brief summary of a thread for display purposes
+type ThreadSummary struct {
+	ID           uuid.UUID
+	CreatedAt    time.Time
+	MessageCount int
+	Preview      string
+}
+
+func (s *ChatService) GetThreadSummary(ctx context.Context, thread *domain.Thread) (*ThreadSummary, error) {
+	messages, err := s.threadRepo.GetMessages(ctx, thread.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get preview from first human message
+	preview := ""
+	for _, msg := range messages {
+		if msg.Role == domain.RoleHuman {
+			preview = msg.Content
+			if len(preview) > 50 {
+				preview = preview[:47] + "..."
+			}
+			break
+		}
+	}
+
+	return &ThreadSummary{
+		ID:           thread.ID,
+		CreatedAt:    thread.CreatedAt,
+		MessageCount: len(messages),
+		Preview:      preview,
+	}, nil
 }

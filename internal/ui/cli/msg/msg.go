@@ -11,13 +11,9 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
-	"github.com/isaacphi/slop/internal/config"
-	"github.com/isaacphi/slop/internal/domain"
-	sqliteRepo "github.com/isaacphi/slop/internal/repository/sqlite"
 	"github.com/isaacphi/slop/internal/service"
+	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 var (
@@ -37,7 +33,7 @@ var MsgCmd = &cobra.Command{
 		defer cancel()
 
 		// Initialize services
-		chatService, err := initializeServices()
+		chatService, err := shared.InitializeChatService("")
 		if err != nil {
 			return err
 		}
@@ -117,40 +113,6 @@ func init() {
 	MsgCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
 	MsgCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
 	MsgCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
-}
-
-func initializeServices() (*service.ChatService, error) {
-	// Load the configuration
-	cfg, err := config.New(false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Override model if specified
-	if modelFlag != "" {
-		cfg.ActiveModel = modelFlag
-	}
-
-	// Initialize the database connection
-	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// AutoMigrate
-	err = db.AutoMigrate(&domain.Thread{}, &domain.Message{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	// Create the repositories and services
-	threadRepo := sqliteRepo.NewThreadRepository(db)
-	chatService, err := service.NewChatService(threadRepo, cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create chat service: %w", err)
-	}
-
-	return chatService, nil
 }
 
 func sendMessage(ctx context.Context, chatService *service.ChatService, threadID uuid.UUID, message string, isFollowup bool) error {
