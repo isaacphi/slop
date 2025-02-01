@@ -30,7 +30,7 @@ var (
 var MsgCmd = &cobra.Command{
 	Use:   "msg [message]",
 	Short: "Send messages to an LLM",
-	Args:  cobra.MaximumNArgs(1), // Allow 0 args for pipe input
+	// Args:  cobra.MinimumNArgs(1), // Allow 0 args for pipe input
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create cancellable context
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
@@ -45,7 +45,7 @@ var MsgCmd = &cobra.Command{
 		// Get the message content
 		var message string
 		if len(args) > 0 {
-			message = args[0]
+			message = strings.Join(args, " ")
 		} else {
 			// Check for piped input
 			stat, _ := os.Stdin.Stat()
