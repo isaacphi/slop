@@ -20,7 +20,8 @@ type Thread struct {
 
 type Message struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key"`
-	ThreadID  uuid.UUID `gorm:"type:uuid"`
+	ThreadID  uuid.UUID `gorm:"type:uuid;index"`
+	Thread    Thread    `gorm:"foreignKey:ThreadID"`
 	Role      Role      `gorm:"type:text"`
 	Content   string
 	ModelName string `gorm:"type:text"`
