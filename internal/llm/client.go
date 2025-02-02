@@ -16,16 +16,7 @@ type Client struct {
 	config *config.Model
 }
 
-func NewClient(cfg *config.ConfigSchema) (*Client, error) {
-	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
-	}
-
-	modelCfg, ok := cfg.Models[cfg.ActiveModel]
-	if !ok {
-		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
-	}
-
+func NewClient(modelCfg *config.Model) (*Client, error) {
 	var llm llms.Model
 	var err error
 
@@ -47,7 +38,7 @@ func NewClient(cfg *config.ConfigSchema) (*Client, error) {
 
 	return &Client{
 		llm:    llm,
-		config: &modelCfg,
+		config: modelCfg,
 	}, nil
 }
 

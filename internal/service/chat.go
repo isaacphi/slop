@@ -20,7 +20,12 @@ type ChatService struct {
 }
 
 func NewChatService(repo repository.ThreadRepository, cfg *config.ConfigSchema) (*ChatService, error) {
-	llmClient, err := llm.NewClient(cfg)
+	modelCfg, ok := cfg.Models[cfg.ActiveModel]
+	if !ok {
+		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
+	}
+
+	llmClient, err := llm.NewClient(&modelCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}

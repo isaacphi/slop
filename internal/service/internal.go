@@ -11,7 +11,7 @@ import (
 
 type InternalService struct {
 	llm *llm.Client
-	cfg *config.ConfigSchema
+	cfg *config.Internal
 }
 
 func NewInternalService() (*InternalService, error) {
@@ -19,23 +19,19 @@ func NewInternalService() (*InternalService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
-	// Create overrides to use the internal model
-	overrides := &config.RuntimeOverrides{
-		ActiveModel: &cfg.Internal.Model,
-	}
-	internalCfg, err := config.NewConfigWithOverrides(overrides)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create internal config: %w", err)
+	modelCfg, ok := cfg.Models[cfg.Internal.Model]
+	if !ok {
+		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
 	}
 
-	llmClient, err := llm.NewClient(internalCfg)
+	llmClient, err := llm.NewClient(&modelCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client for internal service: %w", err)
 	}
 
 	return &InternalService{
 		llm: llmClient,
-		cfg: internalCfg,
+		cfg: &cfg.Internal,
 	}, nil
 }
 
@@ -54,7 +50,7 @@ func (s *InternalService) CreateThreadSummary(ctx context.Context, messages []do
 		return "[empty]", nil
 	}
 
-	prompt := s.cfg.Internal.SummaryPrompt
+	prompt := s.cfg.SummaryPrompt
 
 	for _, msg := range messages {
 		prompt += fmt.Sprintf("%s: %s\n", msg.Role, msg.Content)
