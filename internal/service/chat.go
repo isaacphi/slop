@@ -46,7 +46,7 @@ type SendMessageOptions struct {
 
 func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
 	// Verify thread exists
-	thread, err := s.threadRepo.GetByID(ctx, opts.ThreadID)
+	thread, err := s.threadRepo.GetThreadByID(ctx, opts.ThreadID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
@@ -111,10 +111,10 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 		Provider:  modelCfg.Provider,
 	}
 
-	if err := s.threadRepo.AddMessage(ctx, opts.ThreadID, userMsg); err != nil {
+	if err := s.threadRepo.AddMessageToThread(ctx, opts.ThreadID, userMsg); err != nil {
 		return nil, err
 	}
-	if err := s.threadRepo.AddMessage(ctx, opts.ThreadID, aiMsg); err != nil {
+	if err := s.threadRepo.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {
 		return nil, err
 	}
 
@@ -123,11 +123,11 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 
 func (s *ChatService) NewThread(ctx context.Context) (*domain.Thread, error) {
 	thread := &domain.Thread{}
-	return thread, s.threadRepo.Create(ctx, thread)
+	return thread, s.threadRepo.CreateThread(ctx, thread)
 }
 
 func (s *ChatService) GetActiveThread(ctx context.Context) (*domain.Thread, error) {
-	thread, err := s.threadRepo.GetMostRecent(ctx)
+	thread, err := s.threadRepo.GetMostRecentThread(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get most recent thread: %w", err)
 	}
@@ -136,12 +136,12 @@ func (s *ChatService) GetActiveThread(ctx context.Context) (*domain.Thread, erro
 
 // ListThreads returns a list of threads, optionally limited to a specific number
 func (s *ChatService) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
-	return s.threadRepo.List(ctx, limit)
+	return s.threadRepo.ListThreads(ctx, limit)
 }
 
 // FindThreadByPartialID finds a thread by a partial ID string
 func (s *ChatService) FindThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
-	return s.threadRepo.FindByPartialID(ctx, partialID)
+	return s.threadRepo.GetThreadByPartialID(ctx, partialID)
 }
 
 // GetThreadDetails returns a brief summary of a thread for display purposes
@@ -188,11 +188,11 @@ func (s *ChatService) GetThreadDetails(ctx context.Context, thread *domain.Threa
 // DeleteThread deletes a thread and all its messages
 func (s *ChatService) DeleteThread(ctx context.Context, threadID uuid.UUID) error {
 	// Check if thread exists first
-	if _, err := s.threadRepo.GetByID(ctx, threadID); err != nil {
+	if _, err := s.threadRepo.GetThreadByID(ctx, threadID); err != nil {
 		return fmt.Errorf("failed to find thread: %w", err)
 	}
 
-	return s.threadRepo.Delete(ctx, threadID)
+	return s.threadRepo.DeleteThread(ctx, threadID)
 }
 
 // GetThreadMessages returns all messages in a thread
@@ -206,7 +206,7 @@ func (s *ChatService) DeleteLastMessages(ctx context.Context, threadID uuid.UUID
 }
 
 func (s *ChatService) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
-	if _, err := s.threadRepo.GetByID(ctx, threadID); err != nil {
+	if _, err := s.threadRepo.GetThreadByID(ctx, threadID); err != nil {
 		return nil, fmt.Errorf("thread not found: %w", err)
 	}
 

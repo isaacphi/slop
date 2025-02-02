@@ -8,14 +8,14 @@ import (
 )
 
 type ThreadRepository interface {
-	Create(ctx context.Context, thread *domain.Thread) error
-	GetByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error)
-	List(ctx context.Context, limit int) ([]*domain.Thread, error)
-	AddMessage(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error
-	GetMostRecent(ctx context.Context) (*domain.Thread, error)
+	CreateThread(ctx context.Context, thread *domain.Thread) error
+	GetThreadByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error)
+	ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error)
+	AddMessageToThread(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error
+	GetMostRecentThread(ctx context.Context) (*domain.Thread, error)
 	GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error)
-	FindByPartialID(ctx context.Context, partialID string) (*domain.Thread, error)
-	Delete(ctx context.Context, id uuid.UUID) error
+	GetThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error)
+	DeleteThread(ctx context.Context, id uuid.UUID) error
 	DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error
 	SetThreadSummary(ctx context.Context, threadId uuid.UUID, summary string) error
 	FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error)

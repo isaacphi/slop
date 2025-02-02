@@ -22,11 +22,11 @@ func NewThreadRepository(db *gorm.DB) repository.ThreadRepository {
 	return &threadRepo{db: db}
 }
 
-func (r *threadRepo) Create(ctx context.Context, thread *domain.Thread) error {
+func (r *threadRepo) CreateThread(ctx context.Context, thread *domain.Thread) error {
 	return r.db.WithContext(ctx).Create(thread).Error
 }
 
-func (r *threadRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error) {
+func (r *threadRepo) GetThreadByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error) {
 	var thread domain.Thread
 	if err := r.db.WithContext(ctx).
 		Preload("Messages").
@@ -39,7 +39,7 @@ func (r *threadRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.Thread,
 	return &thread, nil
 }
 
-func (r *threadRepo) Delete(ctx context.Context, id uuid.UUID) error {
+func (r *threadRepo) DeleteThread(ctx context.Context, id uuid.UUID) error {
 	// Start a transaction to ensure all related records are deleted
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// Delete all messages associated with the thread
@@ -50,7 +50,7 @@ func (r *threadRepo) Delete(ctx context.Context, id uuid.UUID) error {
 	})
 }
 
-func (r *threadRepo) List(ctx context.Context, limit int) ([]*domain.Thread, error) {
+func (r *threadRepo) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
 	var threads []*domain.Thread
 	query := r.db.WithContext(ctx).Order("created_at DESC")
 
@@ -64,7 +64,7 @@ func (r *threadRepo) List(ctx context.Context, limit int) ([]*domain.Thread, err
 	return threads, nil
 }
 
-func (r *threadRepo) GetMostRecent(ctx context.Context) (*domain.Thread, error) {
+func (r *threadRepo) GetMostRecentThread(ctx context.Context) (*domain.Thread, error) {
 	var thread domain.Thread
 	if err := r.db.WithContext(ctx).Order("created_at DESC").First(&thread).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -75,7 +75,7 @@ func (r *threadRepo) GetMostRecent(ctx context.Context) (*domain.Thread, error) 
 	return &thread, nil
 }
 
-func (r *threadRepo) AddMessage(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error {
+func (r *threadRepo) AddMessageToThread(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error {
 	msg.ThreadID = threadID
 	return r.db.WithContext(ctx).Create(msg).Error
 }
@@ -165,7 +165,7 @@ func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messag
 	return result, nil
 }
 
-func (r *threadRepo) FindByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
+func (r *threadRepo) GetThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
 	var thread domain.Thread
 
 	// Convert the string to lowercase for case-insensitive comparison

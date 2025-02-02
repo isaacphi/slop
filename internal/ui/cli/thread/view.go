@@ -43,11 +43,7 @@ var viewCmd = &cobra.Command{
 			if msg.Role == domain.RoleAssistant {
 				roleStr = "Slop"
 			}
-			parentID := "nil     "
-			if msg.ParentID != nil {
-				parentID = msg.ParentID.String()[:8]
-			}
-			fmt.Printf("%s %s - %s: %s\n", msg.ID.String()[:8], parentID, roleStr, msg.Content)
+			fmt.Printf("%s - %s: %s\n", msg.ID.String()[:8], roleStr, msg.Content)
 		}
 
 		return nil
