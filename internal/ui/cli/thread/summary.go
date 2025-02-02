@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/isaacphi/slop/internal/service"
 	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
 )
@@ -31,11 +32,22 @@ var summaryCmd = &cobra.Command{
 			summary = strings.Join(args[1:], " ")
 		} else {
 			// No user supplied summary. Use slop.
-			summary = "slop"
+			messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID)
+			if err != nil {
+				return fmt.Errorf("failed to get thread messages: %w", err)
+			}
+			internalService, err := service.NewInternalService()
+			if err != nil {
+				return fmt.Errorf("failed to initialize internal service: %w", err)
+			}
+			summary, err = internalService.CreateThreadSummary(cmd.Context(), messages)
+			if err != nil {
+				return fmt.Errorf("failed to generate summary: %w", err)
+			}
 		}
 		err = chatService.SetThreadSummary(cmd.Context(), thread, summary)
 		if err != nil {
-			fmt.Errorf("failed to set thread summary: %w", err)
+			return fmt.Errorf("failed to set thread summary: %w", err)
 		}
 		fmt.Println("Thread summary updated successfully")
 		return nil

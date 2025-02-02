@@ -7,3 +7,9 @@ models:
     name: "claude-3-5-haiku-latest"
 activeModel: "claude"
 dbPath: ".slop/slop.db"
+internal:
+  model: "openai"
+  summaryPrompt: >
+    Please provide a brief, concise summary of the following conversation.
+    Focus on the main topics discussed and key points.
+    Summary should be one line long
