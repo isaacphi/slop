@@ -109,12 +109,19 @@ func IsKnownKey(known map[string]bool, key string) bool {
 }
 
 // PrintConfig prints the configuration with optional sources in YAML format
-func (s *ConfigSchema) PrintConfig(includeSources bool) {
-	s.printValue(reflect.ValueOf(*s), "", includeSources, 0)
+func (s *ConfigSchema) PrintConfig(includeSources bool, prefix string) {
+	s.printValue(reflect.ValueOf(*s), "", includeSources, 0, prefix)
 }
 
-func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bool, indent int) {
+func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bool, indent int, prefix string) {
 	t := v.Type()
+
+	prefixParts := strings.Split(prefix, ".")
+	prefixNext := ""
+	prefixPart := prefixParts[0]
+	if len(prefixParts) > 0 {
+		prefixNext = strings.Join(prefixParts[1:], ".")
+	}
 
 	switch v.Kind() {
 	case reflect.Struct:
@@ -124,13 +131,16 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 		}
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
+			if !strings.HasPrefix(strings.ToLower(field.Name), prefixPart) {
+				continue
+			}
 			if !field.IsExported() || field.Tag.Get("mapstructure") == "" {
 				continue
 			}
 			fieldValue := v.Field(i)
 			if !fieldValue.IsZero() {
 				tag := field.Tag.Get("mapstructure")
-				s.printValue(fieldValue, tag, includeSources, indent)
+				s.printValue(fieldValue, tag, includeSources, indent, prefixNext)
 			}
 		}
 
@@ -142,7 +152,10 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 		iter := v.MapRange()
 		for iter.Next() {
 			k := iter.Key().String()
-			s.printValue(iter.Value(), k, includeSources, indent)
+			if !strings.HasPrefix(strings.ToLower(k), prefixPart) {
+				continue
+			}
+			s.printValue(iter.Value(), k, includeSources, indent, prefixNext)
 		}
 
 	default:
