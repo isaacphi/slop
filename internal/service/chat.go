@@ -53,7 +53,7 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 
 	// If no parent specified, get the most recent message in thread
 	if opts.ParentID == nil {
-		messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil)
+		messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get messages: %w", err)
 		}
@@ -64,7 +64,7 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 	}
 
 	// Get conversation history for context
-	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, opts.ParentID)
+	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, opts.ParentID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
@@ -134,51 +134,6 @@ func (s *ChatService) GetActiveThread(ctx context.Context) (*domain.Thread, erro
 	return thread, nil
 }
 
-func (s *ChatService) SendMessageStream(ctx context.Context, threadID uuid.UUID, content string, callback func(chunk string) error) error {
-	thread, err := s.threadRepo.GetByID(ctx, threadID)
-	if err != nil {
-		return fmt.Errorf("failed to get thread: %w", err)
-	}
-
-	modelCfg := s.llm.GetConfig()
-	userMsg := &domain.Message{
-		ThreadID: threadID,
-		Role:     domain.RoleHuman,
-		Content:  content,
-	}
-
-	if err := s.threadRepo.AddMessage(ctx, threadID, userMsg); err != nil {
-		return fmt.Errorf("failed to store user message: %w", err)
-	}
-
-	var fullResponse strings.Builder
-	err = s.llm.ChatStream(ctx, content, thread.Messages, func(chunk []byte) error {
-		chunkStr := string(chunk)
-		fullResponse.WriteString(chunkStr)
-		if err := callback(chunkStr); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to stream AI response: %w", err)
-	}
-
-	aiMsg := &domain.Message{
-		ThreadID:  threadID,
-		Role:      domain.RoleAssistant,
-		Content:   fullResponse.String(),
-		ModelName: modelCfg.Name,
-		Provider:  modelCfg.Provider,
-	}
-
-	if err := s.threadRepo.AddMessage(ctx, threadID, aiMsg); err != nil {
-		return fmt.Errorf("failed to store AI message: %w", err)
-	}
-
-	return nil
-}
-
 // ListThreads returns a list of threads, optionally limited to a specific number
 func (s *ChatService) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
 	return s.threadRepo.List(ctx, limit)
@@ -202,7 +157,7 @@ func (s *ChatService) SetThreadSummary(ctx context.Context, thread *domain.Threa
 }
 
 func (s *ChatService) GetThreadDetails(ctx context.Context, thread *domain.Thread) (*ThreadDetails, error) {
-	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil)
+	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -242,10 +197,18 @@ func (s *ChatService) DeleteThread(ctx context.Context, threadID uuid.UUID) erro
 
 // GetThreadMessages returns all messages in a thread
 func (s *ChatService) GetThreadMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
-	return s.threadRepo.GetMessages(ctx, threadID, messageID)
+	return s.threadRepo.GetMessages(ctx, threadID, messageID, true)
 }
 
 // DeleteLastMessages deletes the specified number of most recent messages from a thread
 func (s *ChatService) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
 	return s.threadRepo.DeleteLastMessages(ctx, threadID, count)
+}
+
+func (s *ChatService) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
+	if _, err := s.threadRepo.GetByID(ctx, threadID); err != nil {
+		return nil, fmt.Errorf("thread not found: %w", err)
+	}
+
+	return s.threadRepo.FindMessageByPartialID(ctx, threadID, partialID)
 }

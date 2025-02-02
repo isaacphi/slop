@@ -80,7 +80,7 @@ func (r *threadRepo) AddMessage(ctx context.Context, threadID uuid.UUID, msg *do
 	return r.db.WithContext(ctx).Create(msg).Error
 }
 
-func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
+func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error) {
 	var messages []domain.Message
 
 	// Load all messages with their relationships
@@ -131,7 +131,7 @@ func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messag
 
 	// Work forwards from startMessage to get the newest child path
 	current = startMessage
-	for current != nil {
+	for getFutureMessages && current != nil {
 		// If no children, we're done
 		if len(current.Children) == 0 {
 			break
@@ -212,4 +212,22 @@ func (r *threadRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID,
 
 func (r *threadRepo) SetThreadSummary(ctx context.Context, threadId uuid.UUID, summary string) error {
 	return r.db.WithContext(ctx).Model(&domain.Thread{}).Where("id = ?", threadId).Update("summary", summary).Error
+}
+
+func (r *threadRepo) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
+	var message domain.Message
+
+	// Convert the string to lowercase for case-insensitive comparison
+	partialID = strings.ToLower(partialID)
+
+	if err := r.db.WithContext(ctx).
+		Where("thread_id = ? AND LOWER(CAST(id AS TEXT)) LIKE ?", threadID, partialID+"%").
+		First(&message).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("message not found")
+		}
+		return nil, err
+	}
+
+	return &message, nil
 }

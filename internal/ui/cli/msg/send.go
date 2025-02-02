@@ -20,7 +20,7 @@ var (
 	continueFlag    bool
 	followupFlag    bool
 	modelFlag       string
-	targetFlag      string
+	threadFlag      string
 	noStreamFlag    bool
 	maxTokensFlag   int
 	temperatureFlag float64
@@ -67,11 +67,11 @@ var sendCmd = &cobra.Command{
 
 		// Get thread ID
 		var threadID uuid.UUID
-		if continueFlag && targetFlag != "" {
+		if continueFlag && threadFlag != "" {
 			return fmt.Errorf("cannot specify --target and --continue")
 		}
-		if targetFlag != "" {
-			thread, err := chatService.FindThreadByPartialID(ctx, targetFlag)
+		if threadFlag != "" {
+			thread, err := chatService.FindThreadByPartialID(ctx, threadFlag)
 			if err != nil {
 				return err
 			}
@@ -91,8 +91,18 @@ var sendCmd = &cobra.Command{
 			threadID = thread.ID
 		}
 
+		sendOptions := service.SendMessageOptions{
+			ThreadID: threadID,
+			Content:  message,
+			Stream:   !noStreamFlag,
+			StreamCallback: func(chunk string) error {
+				fmt.Print(chunk)
+				return nil
+			},
+		}
+
 		// Send initial message
-		if err := sendMessage(ctx, chatService, threadID, message, false); err != nil {
+		if err := sendMessage(ctx, chatService, sendOptions, false); err != nil {
 			return err
 		}
 
@@ -114,7 +124,7 @@ var sendCmd = &cobra.Command{
 					continue
 				}
 
-				if err := sendMessage(ctx, chatService, threadID, message, true); err != nil {
+				if err := sendMessage(ctx, chatService, sendOptions, true); err != nil {
 					return err
 				}
 			}
@@ -125,7 +135,7 @@ var sendCmd = &cobra.Command{
 }
 
 func init() {
-	sendCmd.Flags().StringVarP(&targetFlag, "target", "t", "", "Continue target thread")
+	sendCmd.Flags().StringVarP(&threadFlag, "thread", "t", "", "Continue target thread")
 	sendCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent thread")
 	sendCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
 	sendCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
@@ -134,32 +144,22 @@ func init() {
 	sendCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
 }
 
-func sendMessage(ctx context.Context, chatService *service.ChatService, threadID uuid.UUID, message string, isFollowup bool) error {
+// In send.go
+func sendMessage(ctx context.Context, chatService *service.ChatService, opts service.SendMessageOptions, isFollowup bool) error {
 	if !isFollowup {
-		fmt.Printf("You: %s\n", message)
+		fmt.Printf("You: %s\n", opts.Content)
 	}
 	fmt.Print("Slop: ")
 
 	errCh := make(chan error, 1)
 
-	sendOptions := service.SendMessageOptions{
-		ThreadID: threadID,
-		Content:  message,
-		Stream:   !noStreamFlag,
-	}
-	if sendOptions.Stream {
-		sendOptions.StreamCallback = func(chunk string) error {
-			fmt.Print(chunk)
-			return nil
-		}
-	}
 	go func() {
-		resp, err := chatService.SendMessage(ctx, sendOptions)
+		resp, err := chatService.SendMessage(ctx, opts)
 		if err != nil {
 			errCh <- err
 			return
 		}
-		if !sendOptions.Stream {
+		if !opts.Stream {
 			fmt.Print(resp.Content)
 		}
 		errCh <- nil

@@ -1,7 +1,6 @@
 package thread
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -25,39 +24,32 @@ var viewCmd = &cobra.Command{
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
-		if err := printThread(cmd.Context(), thread, limitFlag); err != nil {
-			return fmt.Errorf("failed to print thread: %w", err)
+		messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID, nil)
+		if err != nil {
+			return fmt.Errorf("failed to get thread messages: %w", err)
+		}
+
+		fmt.Printf("Thread %s (created %s)\n\n",
+			thread.ID.String()[:8],
+			thread.CreatedAt.Format(time.RFC822),
+		)
+
+		if limitFlag > 0 && len(messages) > limitFlag {
+			messages = messages[len(messages)-limitFlag:]
+		}
+
+		for _, msg := range messages {
+			roleStr := "You"
+			if msg.Role == domain.RoleAssistant {
+				roleStr = "Slop"
+			}
+			parentID := "nil     "
+			if msg.ParentID != nil {
+				parentID = msg.ParentID.String()[:8]
+			}
+			fmt.Printf("%s %s - %s: %s\n", msg.ID.String()[:8], parentID, roleStr, msg.Content)
 		}
 
 		return nil
 	},
-}
-
-func printThread(ctx context.Context, thread *domain.Thread, limit int) error {
-	fmt.Printf("Thread %s (created %s)\n\n",
-		thread.ID.String()[:8],
-		thread.CreatedAt.Format(time.RFC822),
-	)
-
-	messages := thread.Messages
-	if limit > 0 && len(messages) > limit {
-		messages = messages[len(messages)-limit:]
-	}
-
-	for _, msg := range messages {
-		roleStr := "You"
-		if msg.Role == domain.RoleAssistant {
-			roleStr = "Slop"
-		}
-		parentID := "nil     "
-		if msg.ParentID != nil {
-			parentID = msg.ParentID.String()[:8]
-		}
-		fmt.Printf("%s %s - %s: %s\n", msg.ID.String()[:8], parentID, roleStr, msg.Content)
-
-		// Add newline between messages for readability
-		fmt.Println()
-	}
-
-	return nil
 }
