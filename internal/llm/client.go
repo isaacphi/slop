@@ -56,28 +56,6 @@ func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
 	return history
 }
 
-func (c *Client) Chat(ctx context.Context, content string, history []domain.Message) (string, error) {
-	opts := []llms.CallOption{
-		llms.WithTemperature(c.config.Temperature),
-		llms.WithMaxTokens(c.config.MaxTokens),
-		llms.WithTools(getTools(c.config.Tools)),
-	}
-
-	msgs := buildMessageHistory(history)
-	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
-
-	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
-	if err != nil {
-		return "", fmt.Errorf("chat failed: %w", err)
-	}
-
-	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no response choices returned")
-	}
-
-	return resp.Choices[0].Content, nil
-}
-
 func getTools(tools map[string]config.Tool) []llms.Tool {
 	var result []llms.Tool
 
@@ -103,7 +81,7 @@ func getTools(tools map[string]config.Tool) []llms.Tool {
 	return result
 }
 
-func (c *Client) ChatStream(ctx context.Context, content string, history []domain.Message, callback func(chunk []byte) error) error {
+func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error) (string, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
@@ -112,18 +90,25 @@ func (c *Client) ChatStream(ctx context.Context, content string, history []domai
 		llms.WithTemperature(c.config.Temperature),
 		llms.WithMaxTokens(c.config.MaxTokens),
 		llms.WithTools(getTools(c.config.Tools)),
-		llms.WithStreamingFunc(wrappedCallback),
+	}
+
+	if stream {
+		opts = append(opts, llms.WithStreamingFunc(wrappedCallback))
 	}
 
 	msgs := buildMessageHistory(history)
 	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
 
-	_, err := c.llm.GenerateContent(ctx, msgs, opts...)
+	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
-		return fmt.Errorf("streaming chat failed: %w", err)
+		return "", fmt.Errorf("streaming chat failed: %w", err)
 	}
 
-	return nil
+	if len(resp.Choices) == 0 {
+		return "", fmt.Errorf("no response choices returned")
+	}
+
+	return resp.Choices[0].Content, nil
 }
 
 func (c *Client) GetConfig() *config.Model {

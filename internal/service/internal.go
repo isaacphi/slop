@@ -37,7 +37,7 @@ func NewInternalService() (*InternalService, error) {
 
 // ChatOneOff makes a single call to the LLM without storing any context or history
 func (s *InternalService) GenerateOneOff(ctx context.Context, prompt string) (string, error) {
-	response, err := s.llm.Chat(ctx, prompt, []domain.Message{})
+	response, err := s.llm.Chat(ctx, prompt, []domain.Message{}, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("internal chat failed: %w", err)
 	}

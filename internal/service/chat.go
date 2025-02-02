@@ -82,7 +82,7 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 	var aiResponse string
 	if opts.Stream {
 		var fullResponse strings.Builder
-		err = s.llm.ChatStream(ctx, opts.Content, messages, func(chunk []byte) error {
+		_, err = s.llm.Chat(ctx, opts.Content, messages, true, func(chunk []byte) error {
 			chunkStr := string(chunk)
 			fullResponse.WriteString(chunkStr)
 			if err := opts.StreamCallback(chunkStr); err != nil {
@@ -95,7 +95,7 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 		}
 		aiResponse = fullResponse.String()
 	} else {
-		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages)
+		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, false, nil)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AI response: %w", err)
 		}
