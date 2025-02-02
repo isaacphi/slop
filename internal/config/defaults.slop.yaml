@@ -12,4 +12,5 @@ internal:
   summaryPrompt: >
     Please provide a brief, concise summary of the following conversation.
     Focus on the main topics discussed and key points.
-    Summary should be one line long
+    The purpose is to quickly identify a conversation in a list.
+    Summary should be less than 8 words long.

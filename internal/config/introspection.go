@@ -13,7 +13,6 @@ func GetKnownKeys() map[string]bool {
 	return known
 }
 
-// addKnowKeysByValue recursively adds keys by examining struct value
 func addKnowKeysByValue(prefix string, val interface{}, known map[string]bool) {
 	v := reflect.ValueOf(val)
 	t := v.Type()
@@ -37,6 +36,12 @@ func addKnowKeysByValue(prefix string, val interface{}, known map[string]bool) {
 		// Convert the key to lowercase since viper lowercases all keys
 		key = strings.ToLower(key)
 		known[key] = true
+
+		// Recursively handle struct fields
+		if field.Type.Kind() == reflect.Struct {
+			// Create a zero value of the field type to recurse into
+			addKnowKeysByValue(key, reflect.New(field.Type).Elem().Interface(), known)
+		}
 
 		// Add wildcard entries for maps
 		switch field.Type.Kind() {
