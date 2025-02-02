@@ -5,6 +5,20 @@ models:
   claude:
     provider: "anthropic"
     name: "claude-3-5-haiku-latest"
+    tools:
+      getCurrentWeather:
+        type: function
+        description: Get the current weather in a given location
+        parameters:
+          type: object
+          properties:
+            location:
+              type: string
+              description: The city and state, e.g. San Francisco, CA
+            unit:
+              type: string
+              enum: [fahrenheit, celsius]
+          required: [location]
 activeModel: "claude"
 dbPath: ".slop/slop.db"
 internal:

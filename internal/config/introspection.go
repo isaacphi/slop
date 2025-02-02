@@ -16,23 +16,19 @@ func GetKnownKeys() map[string]bool {
 func addKnowKeysByValue(prefix string, val interface{}, known map[string]bool) {
 	v := reflect.ValueOf(val)
 	t := v.Type()
-
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if !field.IsExported() {
 			continue
 		}
-
 		tag := field.Tag.Get("mapstructure")
 		if tag == "" {
 			continue
 		}
-
 		key := tag
 		if prefix != "" {
 			key = prefix + "." + tag
 		}
-
 		// Convert the key to lowercase since viper lowercases all keys
 		key = strings.ToLower(key)
 		known[key] = true
@@ -43,25 +39,44 @@ func addKnowKeysByValue(prefix string, val interface{}, known map[string]bool) {
 			addKnowKeysByValue(key, reflect.New(field.Type).Elem().Interface(), known)
 		}
 
-		// Add wildcard entries for maps
+		// Handle different types
 		switch field.Type.Kind() {
 		case reflect.Map:
 			// Add base map key
 			known[key] = true
 
-			// For maps of structs, add their fields
+			// For maps of any type, we need to handle possible nesting
+			elemType := field.Type.Elem()
+			wildcardPrefix := fmt.Sprintf("%s.*", key)
+			known[wildcardPrefix] = true
+
+			// If it's a map to a struct, recursively add its fields
+			if elemType.Kind() == reflect.Struct {
+				// Create an instance of the map value type to recurse into
+				elemValue := reflect.New(elemType).Elem().Interface()
+				addKnowKeysByValue(wildcardPrefix, elemValue, known)
+			} else if elemType.Kind() == reflect.Map {
+				// For nested maps, recurse with the wildcard prefix
+				// This handles cases like map[string]map[string]Property
+				subElemType := elemType.Elem()
+				if subElemType.Kind() == reflect.Struct {
+					subElemValue := reflect.New(subElemType).Elem().Interface()
+					addKnowKeysByValue(wildcardPrefix, subElemValue, known)
+				}
+			}
+
+		case reflect.Slice, reflect.Array:
+			// Add the base slice/array key
+			known[key] = true
+			// For slices/arrays of structs, add their fields
 			if field.Type.Elem().Kind() == reflect.Struct {
 				elemType := field.Type.Elem()
-				for j := 0; j < elemType.NumField(); j++ {
-					subField := elemType.Field(j)
-					if subTag := subField.Tag.Get("mapstructure"); subTag != "" {
-						wildcardKey := fmt.Sprintf("%s.*.%s", key, strings.ToLower(subTag))
-						known[wildcardKey] = true
-					}
-				}
+				wildcardPrefix := fmt.Sprintf("%s.[*]", key)
+				elemValue := reflect.New(elemType).Elem().Interface()
+				addKnowKeysByValue(wildcardPrefix, elemValue, known)
 			} else {
-				// For simple maps (like theme), allow any nested fields
-				wildcardKey := fmt.Sprintf("%s.*", key)
+				// For simple slices, allow any index
+				wildcardKey := fmt.Sprintf("%s.[*]", key)
 				known[wildcardKey] = true
 			}
 		}

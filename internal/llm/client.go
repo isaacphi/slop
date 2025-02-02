@@ -60,6 +60,7 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),
 		llms.WithMaxTokens(c.config.MaxTokens),
+		llms.WithTools(getTools(c.config.Tools)),
 	}
 
 	msgs := buildMessageHistory(history)
@@ -77,6 +78,31 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 	return resp.Choices[0].Content, nil
 }
 
+func getTools(tools map[string]config.Tool) []llms.Tool {
+	var result []llms.Tool
+
+	for name, tool := range tools {
+		// Convert our strongly typed Parameters to map[string]interface{}
+		paramsMap := map[string]interface{}{
+			"type":       tool.Parameters.Type,
+			"properties": tool.Parameters.Properties,
+			"required":   tool.Parameters.Required,
+		}
+
+		langchainTool := llms.Tool{
+			Type: tool.Type,
+			Function: &llms.FunctionDefinition{
+				Name:        name,
+				Description: tool.Description,
+				Parameters:  paramsMap,
+			},
+		}
+		result = append(result, langchainTool)
+	}
+
+	return result
+}
+
 func (c *Client) ChatStream(ctx context.Context, content string, history []domain.Message, callback func(chunk []byte) error) error {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
@@ -85,6 +111,7 @@ func (c *Client) ChatStream(ctx context.Context, content string, history []domai
 	opts := []llms.CallOption{
 		llms.WithTemperature(c.config.Temperature),
 		llms.WithMaxTokens(c.config.MaxTokens),
+		llms.WithTools(getTools(c.config.Tools)),
 		llms.WithStreamingFunc(wrappedCallback),
 	}
 
