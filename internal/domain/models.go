@@ -14,17 +14,22 @@ const (
 
 type Thread struct {
 	ID       uuid.UUID `gorm:"type:uuid;primary_key"`
-	Summary  string    `gorm:type:text`
-	Messages []Message
+	Summary  string    `gorm:"type:text"`
+	Messages []Message `gorm:"foreignKey:ThreadID"`
 	gorm.Model
 }
 
 type Message struct {
-	ID        uuid.UUID `gorm:"type:uuid;primary_key"`
-	ThreadID  uuid.UUID `gorm:"type:uuid;index"`
-	Thread    Thread    `gorm:"foreignKey:ThreadID"`
-	Role      Role      `gorm:"type:text"`
-	Content   string
+	ID       uuid.UUID `gorm:"type:uuid;primary_key"`
+	ThreadID uuid.UUID `gorm:"type:uuid;index"`
+	Thread   *Thread   `gorm:"foreignKey:ThreadID"`
+
+	ParentID *uuid.UUID `gorm:"type:uuid;index"`
+	Parent   *Message   `gorm:"foreignKey:ParentID"`
+	Children []Message  `gorm:"foreignKey:ParentID"`
+
+	Role      Role   `gorm:"type:text"`
+	Content   string `gorm:"type:text"`
 	ModelName string `gorm:"type:text"`
 	Provider  string `gorm:"type:text"`
 	gorm.Model

@@ -45,12 +45,15 @@ func printThread(ctx context.Context, thread *domain.Thread, limit int) error {
 	}
 
 	for _, msg := range messages {
-		// Print role
 		roleStr := "You"
 		if msg.Role == domain.RoleAssistant {
 			roleStr = "Slop"
 		}
-		fmt.Printf("%s: %s\n", roleStr, msg.Content)
+		parentID := "nil     "
+		if msg.ParentID != nil {
+			parentID = msg.ParentID.String()[:8]
+		}
+		fmt.Printf("%s %s - %s: %s\n", msg.ID.String()[:8], parentID, roleStr, msg.Content)
 
 		// Add newline between messages for readability
 		fmt.Println()

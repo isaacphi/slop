@@ -24,7 +24,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// Get thread messages
-		messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID)
+		messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get thread messages: %w", err)
 		}

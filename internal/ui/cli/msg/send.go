@@ -142,26 +142,28 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, threadID
 
 	errCh := make(chan error, 1)
 
-	if noStreamFlag {
-		// Use non-streaming version
-		go func() {
-			resp, err := chatService.SendMessage(ctx, threadID, message)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			fmt.Print(resp.Content)
-			errCh <- nil
-		}()
-	} else {
-		// Use streaming version (default)
-		go func() {
-			errCh <- chatService.SendMessageStream(ctx, threadID, message, func(chunk string) error {
-				fmt.Print(chunk)
-				return nil
-			})
-		}()
+	sendOptions := service.SendMessageOptions{
+		ThreadID: threadID,
+		Content:  message,
+		Stream:   !noStreamFlag,
 	}
+	if sendOptions.Stream {
+		sendOptions.StreamCallback = func(chunk string) error {
+			fmt.Print(chunk)
+			return nil
+		}
+	}
+	go func() {
+		resp, err := chatService.SendMessage(ctx, sendOptions)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		if !sendOptions.Stream {
+			fmt.Print(resp.Content)
+		}
+		errCh <- nil
+	}()
 
 	select {
 	case <-ctx.Done():

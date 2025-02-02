@@ -36,36 +36,85 @@ func NewChatService(repo repository.ThreadRepository, cfg *config.ConfigSchema) 
 	}, nil
 }
 
-func (s *ChatService) SendMessage(ctx context.Context, threadID uuid.UUID, content string) (*domain.Message, error) {
-	thread, err := s.threadRepo.GetByID(ctx, threadID)
+type SendMessageOptions struct {
+	ThreadID       uuid.UUID
+	ParentID       *uuid.UUID // Optional: message to reply to. If nil, starts a new conversation
+	Content        string
+	Stream         bool
+	StreamCallback func(chunk string) error // Required if Stream is true
+}
+
+func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
+	// Verify thread exists
+	thread, err := s.threadRepo.GetByID(ctx, opts.ThreadID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
+	// If no parent specified, get the most recent message in thread
+	if opts.ParentID == nil {
+		messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get messages: %w", err)
+		}
+		if len(messages) > 0 {
+			lastMsg := messages[len(messages)-1]
+			opts.ParentID = &lastMsg.ID
+		}
+	}
+
+	// Get conversation history for context
+	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, opts.ParentID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation history: %w", err)
+	}
+
+	// Create user message
 	modelCfg := s.llm.GetConfig()
 	userMsg := &domain.Message{
-		ThreadID: threadID,
+		ThreadID: opts.ThreadID,
+		ParentID: opts.ParentID,
 		Role:     domain.RoleHuman,
-		Content:  content,
+		Content:  opts.Content,
 	}
 
-	response, err := s.llm.Chat(ctx, content, thread.Messages)
-	if err != nil {
-		return nil, err
+	// Get AI response
+	var aiResponse string
+	if opts.Stream {
+		var fullResponse strings.Builder
+		err = s.llm.ChatStream(ctx, opts.Content, messages, func(chunk []byte) error {
+			chunkStr := string(chunk)
+			fullResponse.WriteString(chunkStr)
+			if err := opts.StreamCallback(chunkStr); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to stream AI response: %w", err)
+		}
+		aiResponse = fullResponse.String()
+	} else {
+		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get AI response: %w", err)
+		}
 	}
 
+	// Create AI message as a reply to the user message
 	aiMsg := &domain.Message{
-		ThreadID:  threadID,
+		ThreadID:  opts.ThreadID,
+		ParentID:  &userMsg.ID, // AI message is a child of the user message
 		Role:      domain.RoleAssistant,
-		Content:   response,
+		Content:   aiResponse,
 		ModelName: modelCfg.Name,
 		Provider:  modelCfg.Provider,
 	}
 
-	if err := s.threadRepo.AddMessage(ctx, threadID, userMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, opts.ThreadID, userMsg); err != nil {
 		return nil, err
 	}
-	if err := s.threadRepo.AddMessage(ctx, threadID, aiMsg); err != nil {
+	if err := s.threadRepo.AddMessage(ctx, opts.ThreadID, aiMsg); err != nil {
 		return nil, err
 	}
 
@@ -153,7 +202,7 @@ func (s *ChatService) SetThreadSummary(ctx context.Context, thread *domain.Threa
 }
 
 func (s *ChatService) GetThreadDetails(ctx context.Context, thread *domain.Thread) (*ThreadDetails, error) {
-	messages, err := s.threadRepo.GetMessages(ctx, thread.ID)
+	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -192,8 +241,8 @@ func (s *ChatService) DeleteThread(ctx context.Context, threadID uuid.UUID) erro
 }
 
 // GetThreadMessages returns all messages in a thread
-func (s *ChatService) GetThreadMessages(ctx context.Context, threadID uuid.UUID) ([]domain.Message, error) {
-	return s.threadRepo.GetMessages(ctx, threadID)
+func (s *ChatService) GetThreadMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
+	return s.threadRepo.GetMessages(ctx, threadID, messageID)
 }
 
 // DeleteLastMessages deletes the specified number of most recent messages from a thread
