@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isaacphi/slop/internal/ui/cli/chat"
 	"github.com/isaacphi/slop/internal/ui/cli/config"
 	"github.com/isaacphi/slop/internal/ui/cli/msg"
 	"github.com/isaacphi/slop/internal/ui/cli/thread"
@@ -14,7 +13,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:               "slop",
 	Short:             "For all your slop needs",
-	Long:              `A CLI and TUI interface for interacting with LLMs`,
+	Long:              `A CLI interface for slop`,
 	DisableAutoGenTag: true,
 }
 
@@ -28,7 +27,6 @@ func Execute() {
 func init() {
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 	rootCmd.AddCommand(
-		chat.ChatCmd,
 		config.ConfigCmd,
 		msg.MsgCmd,
 		thread.ThreadCmd,

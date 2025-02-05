@@ -1,10 +1,24 @@
 models:
+  gemini:
+    provider: googleai
+    name: gemini-1.5-flash
+    maxTokens: 1000
+    tools:
+      essay:
+        type: function
+        description: wrie an essay
+        parameters:
+          type: object
+          properties:
+            content:
+              type: string
+              description: short essay content
+            name:
+              type: string
+              description: essay name
   openai:
-    provider: "openai"
-    name: "gpt-4o-mini"
-  claude:
-    provider: "anthropic"
-    name: "claude-3-5-haiku-latest"
+    provider: openai
+    name: gpt-4o
     tools:
       getCurrentWeather:
         type: function
@@ -18,9 +32,26 @@ models:
             unit:
               type: string
               enum: [fahrenheit, celsius]
-          required: [location]
-activeModel: "claude"
-dbPath: ".slop/slop.db"
+          required: [location, unit]
+  claude:
+    provider: anthropic
+    name: claude-3-5-haiku-latest
+    tools:
+      getCurrentWeather:
+        type: function
+        description: Get the current weather in a given location
+        parameters:
+          type: object
+          properties:
+            location:
+              type: string
+              description: The city and state, e.g. San Francisco, CA
+            unit:
+              type: string
+              enum: [fahrenheit, celsius]
+          required: [location, unit]
+activeModel: openai
+dbPath: .slop/slop.db
 internal:
   model: "openai"
   summaryPrompt: >
