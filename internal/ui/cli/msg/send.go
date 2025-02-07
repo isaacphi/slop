@@ -3,6 +3,7 @@ package msg
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -25,6 +26,99 @@ var (
 	maxTokensFlag   int
 	temperatureFlag float64
 )
+
+// Handles function call detection and formatting
+func newFunctionCallStreamHandler(originalCallback func(string) error) func(string) error {
+	handler := &FunctionCallHandler{}
+
+	return func(chunk string) error {
+		// Try to detect start of function call if not already in one
+		if !handler.inFunctionCall {
+			if functionName := handler.tryParseFunctionName(chunk); functionName != "" {
+				handler.inFunctionCall = true
+				handler.functionName = functionName
+				fmt.Printf("\n\n[Requesting tool use: %s]", functionName)
+				return nil
+			}
+			return originalCallback(chunk)
+		}
+
+		// Accumulate and format function call arguments
+		if argumentDiff := handler.tryParseFunctionChunk(chunk); argumentDiff != "" {
+			handler.argBuffer.WriteString(argumentDiff)
+			// fmt.Print(formatPartialJSON(handler.argBuffer.String()))
+			fmt.Print(formatPartialJSON(argumentDiff, handler))
+			// fmt.Println(handler.argBuffer.String())
+			return nil
+		}
+
+		return nil
+	}
+}
+
+var fcall []struct {
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"`
+	} `json:"function"`
+}
+
+func (h *FunctionCallHandler) tryParseFunctionName(chunk string) string {
+	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil && fcall[0].Function.Name != "" {
+		return fcall[0].Function.Name
+	}
+	return ""
+}
+
+func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) string {
+	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil && fcall[0].Function.Arguments != "" {
+		return fcall[0].Function.Arguments
+	}
+	return ""
+}
+
+// FunctionCallHandler manages streaming function call state
+type FunctionCallHandler struct {
+	inFunctionCall bool
+	functionName   string
+	argBuffer      strings.Builder
+	inQuote        bool
+	escaped        bool
+}
+
+// formatPartialJSON formats JSON chunks for display
+func formatPartialJSON(partial string, handler *FunctionCallHandler) string {
+	var formatted strings.Builder
+
+	for _, char := range partial {
+		switch {
+		case handler.escaped:
+			// Handle escaped character
+			formatted.WriteRune(char)
+			handler.escaped = false
+		case char == '\\':
+			// Start of escape sequence
+			formatted.WriteRune(char)
+			handler.escaped = true
+		case char == '"':
+			// Toggle quote state
+			handler.inQuote = !handler.inQuote
+		case char == '{' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == '}' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == ',' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == ' ' && !handler.inQuote:
+		case char == ':' && !handler.inQuote:
+			formatted.WriteString(": ")
+		default:
+			formatted.WriteRune(char)
+		}
+	}
+	// return partial
+	return formatted.String()
+}
 
 var sendCmd = &cobra.Command{
 	Use:   "send [message]",
@@ -124,6 +218,7 @@ var sendCmd = &cobra.Command{
 					continue
 				}
 
+				sendOptions.Content = message
 				if err := sendMessage(ctx, chatService, sendOptions, true); err != nil {
 					return err
 				}
@@ -134,25 +229,16 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func init() {
-	sendCmd.Flags().StringVarP(&threadFlag, "thread", "t", "", "Continue target thread")
-	sendCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent thread")
-	sendCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
-	sendCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
-	sendCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
-	sendCmd.Flags().IntVar(&maxTokensFlag, "max-tokens", 0, "Override maximum length")
-	sendCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
-}
-
-// In send.go
 func sendMessage(ctx context.Context, chatService *service.ChatService, opts service.SendMessageOptions, isFollowup bool) error {
 	if !isFollowup {
 		fmt.Printf("You: %s\n", opts.Content)
 	}
 	fmt.Print("Slop: ")
 
-	errCh := make(chan error, 1)
+	origCallback := opts.StreamCallback
+	opts.StreamCallback = newFunctionCallStreamHandler(origCallback)
 
+	errCh := make(chan error, 1)
 	go func() {
 		resp, err := chatService.SendMessage(ctx, opts)
 		if err != nil {
@@ -162,6 +248,7 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, opts ser
 		if !opts.Stream {
 			fmt.Print(resp.Content)
 		}
+		// note: gemini does not stream tool use (is this an issue with langchaingo?)
 		errCh <- nil
 	}()
 
@@ -178,3 +265,14 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, opts ser
 	fmt.Println()
 	return nil
 }
+
+func init() {
+	sendCmd.Flags().StringVarP(&threadFlag, "thread", "t", "", "Continue target thread")
+	sendCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent thread")
+	sendCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
+	sendCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
+	sendCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
+	sendCmd.Flags().IntVar(&maxTokensFlag, "max-tokens", 0, "Override maximum length")
+	sendCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
+}
+

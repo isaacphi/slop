@@ -109,6 +109,13 @@ func (c *Client) GetConfig() *config.Model {
 
 func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error) (string, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
+		// var partial map[string]interface{}
+		// if err := json.Unmarshal([]byte(toolContent.PartialJSON), &partial); err == nil {
+		//   for k, v := range partial {
+		//     toolContent.Input[k] = v
+		//   }
+		// }
+		// fmt.Println()
 		return callback(chunk)
 	}
 
@@ -136,17 +143,12 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 		return "", fmt.Errorf("streaming chat failed: %w", err)
 	}
 
-	// Handle function calls in the response
-	if len(resp.Choices) > 0 && resp.Choices[0].FuncCall != nil {
-		fmt.Printf("Function call: %+v\n", resp.Choices[0].FuncCall)
-	}
-
 	if len(resp.Choices) == 0 {
 		return "", fmt.Errorf("no response choices returned")
 	}
 
 	// Log the full response details
-	fmt.Printf("Response object: %+v\n", resp)
+	fmt.Printf("\nResponse object:\n")
 	for i, choice := range resp.Choices {
 		fmt.Printf("Choice %d:\n", i)
 		fmt.Printf("  Content: %s\n", choice.Content)
@@ -160,5 +162,6 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 			}
 		}
 	}
+
 	return resp.Choices[0].Content, nil
 }
