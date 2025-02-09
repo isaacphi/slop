@@ -142,20 +142,20 @@ func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions
 	opts.Tools = a.mcp.GetTools()
 
 	// Start with normal message flow
-	msg, err := a.messageService.SendMessage(ctx, opts)
+	responseMsg, err := a.messageService.SendMessage(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("message service error: %w", err)
 	}
 
 	var toolCalls []llm.ToolCall
-	err = json.Unmarshal([]byte(msg.ToolCalls), &toolCalls)
+	err = json.Unmarshal([]byte(responseMsg.ToolCalls), &toolCalls)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshalling tool calls: %w", err)
 	}
 
 	// Check for function calls in response
 	if len(toolCalls) == 0 {
-		return msg, nil
+		return responseMsg, nil
 	}
 
 	toolCall := toolCalls[0]
@@ -172,15 +172,15 @@ func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions
 		// Feed result back to message
 		followupOpts := service.SendMessageOptions{
 			ThreadID: opts.ThreadID,
-			ParentID: &msg.ID,
+			ParentID: &responseMsg.ID,
 			Content:  formatFunctionResult(result),
 		}
 		return a.messageService.SendMessage(ctx, followupOpts)
 	}
 
 	// Return function call for manual approval
-	return msg, &PendingFunctionCallError{
-		Message:  msg,
+	return responseMsg, &PendingFunctionCallError{
+		Message:  responseMsg,
 		ToolCall: toolCall,
 	}
 }

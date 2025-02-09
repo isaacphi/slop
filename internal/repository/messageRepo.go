@@ -18,6 +18,7 @@ type MessageRepository interface {
 	SetThreadSummary(ctx context.Context, threadId uuid.UUID, summary string) error
 
 	// Messages
+	// Get messages in thread up to and including message with ID messageID getFutureMessages also fetches child messages.
 	GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error)
 	FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error)
 	DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error
