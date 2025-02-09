@@ -6,10 +6,10 @@ import (
 	"gorm.io/gorm"
 )
 
-type threadRepo struct {
+type messageRepo struct {
 	db *gorm.DB
 }
 
-func NewThreadRepository(db *gorm.DB) repository.ThreadRepository {
-	return &threadRepo{db: db}
+func NewMessageRepository(db *gorm.DB) repository.MessageRepository {
+	return &messageRepo{db: db}
 }

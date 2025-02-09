@@ -17,11 +17,11 @@ import (
 )
 
 type MessageService struct {
-	threadRepo repository.ThreadRepository
-	llm        *llm.Client
+	messageRepo repository.MessageRepository
+	llm         *llm.Client
 }
 
-func NewMessageService(repo repository.ThreadRepository, cfg *config.ConfigSchema) (*MessageService, error) {
+func NewMessageService(repo repository.MessageRepository, cfg *config.ConfigSchema) (*MessageService, error) {
 	modelCfg, ok := cfg.Models[cfg.ActiveModel]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
@@ -33,8 +33,8 @@ func NewMessageService(repo repository.ThreadRepository, cfg *config.ConfigSchem
 	}
 
 	return &MessageService{
-		threadRepo: repo,
-		llm:        llmClient,
+		messageRepo: repo,
+		llm:         llmClient,
 	}, nil
 }
 
@@ -48,14 +48,14 @@ type SendMessageOptions struct {
 
 func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
 	// Verify thread exists
-	thread, err := s.threadRepo.GetThreadByID(ctx, opts.ThreadID)
+	thread, err := s.messageRepo.GetThreadByID(ctx, opts.ThreadID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
 	// If no parent specified, get the most recent message in thread
 	if opts.ParentID == nil {
-		messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil, false)
+		messages, err := s.messageRepo.GetMessages(ctx, thread.ID, nil, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get messages: %w", err)
 		}
@@ -66,7 +66,7 @@ func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOption
 	}
 
 	// Get conversation history for context
-	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, opts.ParentID, false)
+	messages, err := s.messageRepo.GetMessages(ctx, thread.ID, opts.ParentID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
@@ -102,10 +102,10 @@ func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOption
 		Provider:  modelCfg.Provider,
 	}
 
-	if err := s.threadRepo.AddMessageToThread(ctx, opts.ThreadID, userMsg); err != nil {
+	if err := s.messageRepo.AddMessageToThread(ctx, opts.ThreadID, userMsg); err != nil {
 		return nil, err
 	}
-	if err := s.threadRepo.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {
+	if err := s.messageRepo.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {
 		return nil, err
 	}
 
@@ -114,11 +114,11 @@ func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOption
 
 func (s *MessageService) NewThread(ctx context.Context) (*domain.Thread, error) {
 	thread := &domain.Thread{}
-	return thread, s.threadRepo.CreateThread(ctx, thread)
+	return thread, s.messageRepo.CreateThread(ctx, thread)
 }
 
 func (s *MessageService) GetActiveThread(ctx context.Context) (*domain.Thread, error) {
-	thread, err := s.threadRepo.GetMostRecentThread(ctx)
+	thread, err := s.messageRepo.GetMostRecentThread(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get most recent thread: %w", err)
 	}
@@ -127,12 +127,12 @@ func (s *MessageService) GetActiveThread(ctx context.Context) (*domain.Thread, e
 
 // ListThreads returns a list of threads, optionally limited to a specific number
 func (s *MessageService) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
-	return s.threadRepo.ListThreads(ctx, limit)
+	return s.messageRepo.ListThreads(ctx, limit)
 }
 
 // FindThreadByPartialID finds a thread by a partial ID string
 func (s *MessageService) FindThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error) {
-	return s.threadRepo.GetThreadByPartialID(ctx, partialID)
+	return s.messageRepo.GetThreadByPartialID(ctx, partialID)
 }
 
 // GetThreadDetails returns a brief summary of a thread for display purposes
@@ -144,11 +144,11 @@ type ThreadDetails struct {
 }
 
 func (s *MessageService) SetThreadSummary(ctx context.Context, thread *domain.Thread, summary string) error {
-	return s.threadRepo.SetThreadSummary(ctx, thread.ID, summary)
+	return s.messageRepo.SetThreadSummary(ctx, thread.ID, summary)
 }
 
 func (s *MessageService) GetThreadDetails(ctx context.Context, thread *domain.Thread) (*ThreadDetails, error) {
-	messages, err := s.threadRepo.GetMessages(ctx, thread.ID, nil, false)
+	messages, err := s.messageRepo.GetMessages(ctx, thread.ID, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -179,29 +179,29 @@ func (s *MessageService) GetThreadDetails(ctx context.Context, thread *domain.Th
 // DeleteThread deletes a thread and all its messages
 func (s *MessageService) DeleteThread(ctx context.Context, threadID uuid.UUID) error {
 	// Check if thread exists first
-	if _, err := s.threadRepo.GetThreadByID(ctx, threadID); err != nil {
+	if _, err := s.messageRepo.GetThreadByID(ctx, threadID); err != nil {
 		return fmt.Errorf("failed to find thread: %w", err)
 	}
 
-	return s.threadRepo.DeleteThread(ctx, threadID)
+	return s.messageRepo.DeleteThread(ctx, threadID)
 }
 
 // GetThreadMessages returns all messages in a thread
 func (s *MessageService) GetThreadMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
-	return s.threadRepo.GetMessages(ctx, threadID, messageID, true)
+	return s.messageRepo.GetMessages(ctx, threadID, messageID, true)
 }
 
 // DeleteLastMessages deletes the specified number of most recent messages from a thread
 func (s *MessageService) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
-	return s.threadRepo.DeleteLastMessages(ctx, threadID, count)
+	return s.messageRepo.DeleteLastMessages(ctx, threadID, count)
 }
 
 func (s *MessageService) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
-	if _, err := s.threadRepo.GetThreadByID(ctx, threadID); err != nil {
+	if _, err := s.messageRepo.GetThreadByID(ctx, threadID); err != nil {
 		return nil, fmt.Errorf("thread not found: %w", err)
 	}
 
-	return s.threadRepo.FindMessageByPartialID(ctx, threadID, partialID)
+	return s.messageRepo.FindMessageByPartialID(ctx, threadID, partialID)
 }
 
 // InitializeMessageService creates and initializes the message service with all required dependencies
@@ -219,7 +219,7 @@ func InitializeMessageService(cfg *config.ConfigSchema) (*MessageService, error)
 	}
 
 	// Create the repositories and services
-	threadRepo := sqliteRepo.NewThreadRepository(db)
+	threadRepo := sqliteRepo.NewMessageRepository(db)
 	messageService, err := NewMessageService(threadRepo, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message service: %w", err)

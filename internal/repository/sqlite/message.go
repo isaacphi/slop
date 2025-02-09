@@ -12,12 +12,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func (r *threadRepo) AddMessageToThread(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error {
+func (r *messageRepo) AddMessageToThread(ctx context.Context, threadID uuid.UUID, msg *domain.Message) error {
 	msg.ThreadID = threadID
 	return r.db.WithContext(ctx).Create(msg).Error
 }
 
-func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error) {
+func (r *messageRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error) {
 	var messages []domain.Message
 
 	// Load all messages with their relationships
@@ -102,7 +102,7 @@ func (r *threadRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messag
 	return result, nil
 }
 
-func (r *threadRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
+func (r *messageRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error {
 	// Get the IDs of the last 'count' messages
 	var messageIDs []uuid.UUID
 	if err := r.db.WithContext(ctx).
@@ -126,7 +126,7 @@ func (r *threadRepo) DeleteLastMessages(ctx context.Context, threadID uuid.UUID,
 	return nil
 }
 
-func (r *threadRepo) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
+func (r *messageRepo) FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error) {
 	var message domain.Message
 
 	// Convert the string to lowercase for case-insensitive comparison

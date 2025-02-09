@@ -7,7 +7,7 @@ import (
 	"github.com/isaacphi/slop/internal/domain"
 )
 
-type ThreadRepository interface {
+type MessageRepository interface {
 	// Threads
 	CreateThread(ctx context.Context, thread *domain.Thread) error
 	GetThreadByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error)
