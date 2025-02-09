@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/isaacphi/slop/internal/ui/cli/config"
+	"github.com/isaacphi/slop/internal/ui/cli/mcp"
 	"github.com/isaacphi/slop/internal/ui/cli/msg"
 	"github.com/isaacphi/slop/internal/ui/cli/thread"
 	"github.com/spf13/cobra"
@@ -30,6 +31,6 @@ func init() {
 		config.ConfigCmd,
 		msg.MsgCmd,
 		thread.ThreadCmd,
+		mcp.MCPCmd,
 	)
 }
-

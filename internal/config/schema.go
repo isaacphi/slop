@@ -34,11 +34,19 @@ type Internal struct {
 	SummaryPrompt string `mapstructure:"summaryPrompt"`
 }
 
+// MCP
+type MCPServer struct {
+	Command string            `mapstructure:"command"`
+	Args    []string          `mapstructure:"args"`
+	Env     map[string]string `mapstructure:"env"`
+}
+
 type ConfigSchema struct {
-	Models      map[string]Model `mapstructure:"models"`
-	ActiveModel string           `mapstructure:"activeModel"`
-	DBPath      string           `mapstructure:"dbPath"`
-	Internal    Internal         `mapstructure:"internal"`
+	Models      map[string]Model     `mapstructure:"models"`
+	ActiveModel string               `mapstructure:"activeModel"`
+	DBPath      string               `mapstructure:"dbPath"`
+	Internal    Internal             `mapstructure:"internal"`
+	MCPServers  map[string]MCPServer `mapstructure:"mcpServers"`
 
 	// Internal fields for printing
 	sources  map[string][]configSource

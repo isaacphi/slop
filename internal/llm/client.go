@@ -109,13 +109,6 @@ func (c *Client) GetConfig() *config.Model {
 
 func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error) (string, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
-		// var partial map[string]interface{}
-		// if err := json.Unmarshal([]byte(toolContent.PartialJSON), &partial); err == nil {
-		//   for k, v := range partial {
-		//     toolContent.Input[k] = v
-		//   }
-		// }
-		// fmt.Println()
 		return callback(chunk)
 	}
 
