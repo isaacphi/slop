@@ -28,53 +28,30 @@ var (
 )
 
 // Handles function call detection and formatting
-func newFunctionCallStreamHandler(originalCallback func(string) error) func(string) error {
+func functionCallStreamHandler(originalCallback func(string) error) func(string) error {
+	// Use a closure to encapsulate the state of the streamed function call
 	handler := &FunctionCallHandler{}
 
 	return func(chunk string) error {
 		// Try to detect start of function call if not already in one
 		if !handler.inFunctionCall {
-			if functionName := handler.tryParseFunctionName(chunk); functionName != "" {
+			if functionChunk, err := handler.tryParseFunctionChunk(chunk); err == nil {
 				handler.inFunctionCall = true
-				handler.functionName = functionName
-				fmt.Printf("\n\n[Requesting tool use: %s]", functionName)
+				handler.functionName = functionChunk.Name
+				fmt.Printf("\n\n[Requesting tool use: %s]", functionChunk.Name)
 				return nil
 			}
 			return originalCallback(chunk)
 		}
 
 		// Accumulate and format function call arguments
-		if argumentDiff := handler.tryParseFunctionChunk(chunk); argumentDiff != "" {
-			handler.argBuffer.WriteString(argumentDiff)
-			// fmt.Print(formatPartialJSON(handler.argBuffer.String()))
-			fmt.Print(formatPartialJSON(argumentDiff, handler))
-			// fmt.Println(handler.argBuffer.String())
+		if functionChunk, err := handler.tryParseFunctionChunk(chunk); err == nil {
+			handler.argBuffer.WriteString(functionChunk.Arguments)
+			fmt.Print(formatPartialJSON(functionChunk.Arguments, handler))
 			return nil
 		}
-
 		return nil
 	}
-}
-
-var fcall []struct {
-	Function struct {
-		Name      string `json:"name"`
-		Arguments string `json:"arguments"`
-	} `json:"function"`
-}
-
-func (h *FunctionCallHandler) tryParseFunctionName(chunk string) string {
-	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil && fcall[0].Function.Name != "" {
-		return fcall[0].Function.Name
-	}
-	return ""
-}
-
-func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) string {
-	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil && fcall[0].Function.Arguments != "" {
-		return fcall[0].Function.Arguments
-	}
-	return ""
 }
 
 // FunctionCallHandler manages streaming function call state
@@ -84,6 +61,22 @@ type FunctionCallHandler struct {
 	argBuffer      strings.Builder
 	inQuote        bool
 	escaped        bool
+}
+
+type FunctionCallChunk struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) (FunctionCallChunk, error) {
+	var fcall []struct {
+		Function FunctionCallChunk `json:"function"`
+	}
+	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil {
+		return fcall[0].Function, nil
+	} else {
+		return FunctionCallChunk{}, err
+	}
 }
 
 // formatPartialJSON formats JSON chunks for display
@@ -236,7 +229,7 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, opts ser
 	fmt.Print("Slop: ")
 
 	origCallback := opts.StreamCallback
-	opts.StreamCallback = newFunctionCallStreamHandler(origCallback)
+	opts.StreamCallback = functionCallStreamHandler(origCallback)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -275,4 +268,3 @@ func init() {
 	sendCmd.Flags().IntVar(&maxTokensFlag, "max-tokens", 0, "Override maximum length")
 	sendCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
 }
-
