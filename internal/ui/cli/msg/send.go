@@ -31,14 +31,14 @@ var (
 )
 
 // Handles function call detection and formatting
-func functionCallStreamHandler(originalCallback func(string) error) func(string) error {
+func functionCallStreamHandler(originalCallback func([]byte) error) func([]byte) error {
 	// Use a closure to encapsulate the state of the streamed function call
 	handler := &FunctionCallHandler{}
 
-	return func(chunk string) error {
+	return func(chunk []byte) error {
 		// Try to detect start of function call if not already in one
 		if !handler.inFunctionCall {
-			if functionChunk, err := handler.tryParseFunctionChunk(chunk); err == nil {
+			if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
 				handler.inFunctionCall = true
 				handler.functionName = functionChunk.Name
 				fmt.Printf("\n\n[Requesting tool use: %s]", functionChunk.Name)
@@ -48,7 +48,7 @@ func functionCallStreamHandler(originalCallback func(string) error) func(string)
 		}
 
 		// Accumulate and format function call arguments
-		if functionChunk, err := handler.tryParseFunctionChunk(chunk); err == nil {
+		if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
 			handler.argBuffer.WriteString(functionChunk.Arguments)
 			fmt.Print(formatPartialJSON(functionChunk.Arguments, handler))
 			return nil
@@ -199,14 +199,18 @@ var sendCmd = &cobra.Command{
 			threadID = thread.ID
 		}
 
+		// Set StreamCallback
+		streamCallback := func(chunk []byte) error {
+			fmt.Print(string(chunk))
+			return nil
+		}
+		if noStreamFlag {
+			streamCallback = nil
+		}
 		sendOptions := service.SendMessageOptions{
-			ThreadID: threadID,
-			Content:  message,
-			Stream:   !noStreamFlag,
-			StreamCallback: func(chunk string) error {
-				fmt.Print(chunk)
-				return nil
-			},
+			ThreadID:       threadID,
+			Content:        message,
+			StreamCallback: streamCallback,
 		}
 
 		// Send initial message
@@ -249,8 +253,10 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts service.Se
 	}
 	fmt.Print("Slop: ")
 
-	origCallback := opts.StreamCallback
-	opts.StreamCallback = functionCallStreamHandler(origCallback)
+	if !noStreamFlag {
+		origCallback := opts.StreamCallback
+		opts.StreamCallback = functionCallStreamHandler(origCallback)
+	}
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -259,7 +265,7 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts service.Se
 			errCh <- err
 			return
 		}
-		if !opts.Stream {
+		if noStreamFlag {
 			fmt.Print(resp.Content)
 		}
 		// note: gemini does not stream tool use (is this an issue with langchaingo?)

@@ -40,8 +40,7 @@ type SendMessageOptions struct {
 	ThreadID       uuid.UUID
 	ParentID       *uuid.UUID // Optional: message to reply to. If nil, starts a new conversation
 	Content        string
-	Stream         bool
-	StreamCallback func(chunk string) error // Required if Stream is true
+	StreamCallback func(chunk []byte) error
 	Tools          map[string]config.Tool
 }
 
@@ -80,23 +79,9 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 	}
 
 	// Get AI response
-	var aiResponse llm.MessageResponse
-	if opts.Stream {
-		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, true, func(chunk []byte) error {
-			chunkStr := string(chunk)
-			if err := opts.StreamCallback(chunkStr); err != nil {
-				return err
-			}
-			return nil
-		}, opts.Tools)
-		if err != nil {
-			return nil, fmt.Errorf("failed to stream AI response: %w", err)
-		}
-	} else {
-		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, false, nil, opts.Tools)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get AI response: %w", err)
-		}
+	aiResponse, err := s.llm.Chat(ctx, opts.Content, messages, opts.StreamCallback != nil, opts.StreamCallback, opts.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("failed to stream AI response: %w", err)
 	}
 
 	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
