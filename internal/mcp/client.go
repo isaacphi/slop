@@ -11,7 +11,6 @@ import (
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 	"github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 )
 
 // Client manages multiple MCP server connections
@@ -34,7 +33,6 @@ func New(servers map[string]config.MCPServer) *Client {
 	}
 }
 
-// Initialize starts all configured servers and establishes connections in parallel
 func (c *Client) Initialize(ctx context.Context) error {
 	c.mu.Lock()
 	if c.initialized {
@@ -43,30 +41,37 @@ func (c *Client) Initialize(ctx context.Context) error {
 	}
 	c.mu.Unlock()
 
-	g, gctx := errgroup.WithContext(ctx)
+	var wg sync.WaitGroup
+	errorsChan := make(chan error, len(c.servers)) // Buffered channel to collect errors
 
 	// Start each server in parallel
 	for name, server := range c.servers {
 		name, server := name, server // Create local variables for closure
-		g.Go(func() error {
-			return c.startServer(gctx, name, server)
-		})
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := c.startServer(ctx, name, server); err != nil {
+				errorsChan <- fmt.Errorf("server %s failed: %w", name, err)
+			}
+		}()
 	}
 
-	if err := g.Wait(); err != nil {
-		c.Shutdown()
-		return errors.Wrap(err, "failed to initialize servers")
+	// Wait for all goroutines to finish
+	wg.Wait()
+	close(errorsChan)
+
+	for err := range errorsChan {
+		return fmt.Errorf("failed to initialize server: %v", err)
 	}
 
 	if err := c.buildToolRegistry(ctx); err != nil {
 		c.Shutdown()
-		return errors.Wrap(err, "failed to build tool registry")
+		return fmt.Errorf("failed to build tool registry: %w", err)
 	}
 
 	c.mu.Lock()
 	c.initialized = true
 	c.mu.Unlock()
-
 	return nil
 }
 
