@@ -13,7 +13,6 @@ import (
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/service"
-	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -44,7 +43,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		chatService, err := shared.InitializeChatService(cfg)
+		chatService, err := service.InitializeChatService(cfg)
 		if err != nil {
 			return err
 		}

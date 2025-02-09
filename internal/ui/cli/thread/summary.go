@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/isaacphi/slop/internal/service"
-	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +14,7 @@ var summaryCmd = &cobra.Command{
 	Long:  "Write a summary for a thread. Leave [summary] blank to auto generate a slop summary",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := shared.InitializeChatService(nil)
+		chatService, err := service.InitializeChatService(nil)
 		if err != nil {
 			return err
 		}

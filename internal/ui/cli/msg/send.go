@@ -16,7 +16,6 @@ import (
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/service"
-	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
 )
 
@@ -142,7 +141,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Initialize services
-		chatService, err := shared.InitializeChatService(cfg)
+		chatService, err := service.InitializeChatService(cfg)
 		if err != nil {
 			return err
 		}

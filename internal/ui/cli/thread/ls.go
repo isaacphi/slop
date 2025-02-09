@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/isaacphi/slop/internal/shared"
+	"github.com/isaacphi/slop/internal/service"
 	"github.com/spf13/cobra"
 )
 
@@ -14,7 +14,7 @@ var listCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List conversation threads",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := shared.InitializeChatService(nil)
+		chatService, err := service.InitializeChatService(nil)
 		if err != nil {
 			return err
 		}
