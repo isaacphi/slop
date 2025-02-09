@@ -130,7 +130,7 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 		}
 
 		for _, mcpTool := range response.Tools {
-			toolName := fmt.Sprintf("%s.%s", serverName, mcpTool.Name)
+			toolName := fmt.Sprintf("%s__%s", serverName, mcpTool.Name)
 
 			description := ""
 			if mcpTool.Description != nil {
@@ -203,9 +203,9 @@ func parseSchema(schema map[string]interface{}) config.Parameters {
 
 // CallTool calls a tool using its fully qualified name (serverName.toolName)
 func (c *Client) CallTool(ctx context.Context, name string, arguments interface{}) (*mcp_golang.ToolResponse, error) {
-	parts := strings.SplitN(name, ".", 2)
+	parts := strings.SplitN(name, "__", 2)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid tool name format, expected 'server.tool', got '%s'", name)
+		return nil, fmt.Errorf("invalid tool name format, expected 'server__tool', got '%s'", name)
 	}
 
 	serverName, toolName := parts[0], parts[1]

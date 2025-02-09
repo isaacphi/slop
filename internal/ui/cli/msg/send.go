@@ -12,6 +12,9 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
+	"github.com/isaacphi/slop/internal/agent"
+	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/service"
 	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
@@ -81,6 +84,7 @@ func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) (FunctionCallC
 
 // formatPartialJSON formats JSON chunks for display
 func formatPartialJSON(partial string, handler *FunctionCallHandler) string {
+	// TODO: support multiple tool calls
 	var formatted strings.Builder
 
 	for _, char := range partial {
@@ -121,16 +125,33 @@ var sendCmd = &cobra.Command{
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		// Initialize services
-		opts := &shared.ServiceOptions{
-			Model:       modelFlag,
-			MaxTokens:   maxTokensFlag,
-			Temperature: temperatureFlag,
+		// Get config
+		overrides := &config.RuntimeOverrides{}
+		if modelFlag != "" {
+			overrides.ActiveModel = &modelFlag
 		}
-		chatService, err := shared.InitializeChatService(opts)
+		if maxTokensFlag > 0 {
+			overrides.MaxTokens = &maxTokensFlag
+		}
+		if temperatureFlag > 0 {
+			overrides.Temperature = &temperatureFlag
+		}
+		cfg, err := config.NewConfigWithOverrides(overrides)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		// Initialize services
+		chatService, err := shared.InitializeChatService(cfg)
 		if err != nil {
 			return err
 		}
+		mcpClient := mcp.New(cfg.MCPServers)
+		if err := mcpClient.Initialize(context.Background()); err != nil {
+			return fmt.Errorf("failed to initialize MCP client: %w", err)
+		}
+		defer mcpClient.Shutdown()
+		agentService := agent.New(chatService, mcpClient, cfg)
 
 		// Get the message content
 		var message string
@@ -189,7 +210,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Send initial message
-		if err := sendMessage(ctx, chatService, sendOptions, false); err != nil {
+		if err := sendMessage(ctx, agentService, sendOptions, false); err != nil {
 			return err
 		}
 
@@ -212,7 +233,7 @@ var sendCmd = &cobra.Command{
 				}
 
 				sendOptions.Content = message
-				if err := sendMessage(ctx, chatService, sendOptions, true); err != nil {
+				if err := sendMessage(ctx, agentService, sendOptions, true); err != nil {
 					return err
 				}
 			}
@@ -222,7 +243,7 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func sendMessage(ctx context.Context, chatService *service.ChatService, opts service.SendMessageOptions, isFollowup bool) error {
+func sendMessage(ctx context.Context, agentService *agent.Agent, opts service.SendMessageOptions, isFollowup bool) error {
 	if !isFollowup {
 		fmt.Printf("You: %s\n", opts.Content)
 	}
@@ -233,7 +254,7 @@ func sendMessage(ctx context.Context, chatService *service.ChatService, opts ser
 
 	errCh := make(chan error, 1)
 	go func() {
-		resp, err := chatService.SendMessage(ctx, opts)
+		resp, err := agentService.SendMessage(ctx, opts)
 		if err != nil {
 			errCh <- err
 			return

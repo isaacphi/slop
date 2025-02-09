@@ -35,13 +35,13 @@ func NewInternalService() (*InternalService, error) {
 	}, nil
 }
 
-// ChatOneOff makes a single call to the LLM without storing any context or history
+// GenerateOneOff makes a single call to the LLM without storing any context or history
 func (s *InternalService) GenerateOneOff(ctx context.Context, prompt string) (string, error) {
-	response, err := s.llm.Chat(ctx, prompt, []domain.Message{}, false, nil)
+	response, err := s.llm.Chat(ctx, prompt, []domain.Message{}, false, nil, nil)
 	if err != nil {
 		return "", fmt.Errorf("internal chat failed: %w", err)
 	}
-	return response, nil
+	return response.TextResponse, nil
 }
 
 // CreateThreadSummary generates a summary for a thread using the internal model

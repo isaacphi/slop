@@ -5,7 +5,6 @@ models:
     maxTokens: 1000
     tools:
       getCurrentWeather:
-        type: function
         description: Get the current weather in a given location
         parameters:
           type: object
@@ -18,7 +17,6 @@ models:
               enum: [fahrenheit, celsius]
           required: [location, unit]
       essay:
-        type: function
         description: wrie an essay
         parameters:
           type: object
@@ -34,7 +32,6 @@ models:
     name: gpt-4o
     tools:
       getCurrentWeather:
-        type: function
         description: Get the current weather in a given location
         parameters:
           type: object
@@ -51,7 +48,6 @@ models:
     name: claude-3-5-haiku-latest
     tools:
       getCurrentWeather:
-        type: function
         description: Get the current weather in a given location
         parameters:
           type: object
@@ -65,6 +61,7 @@ models:
           required: [location, unit]
 activeModel: openai
 dbPath: .slop/slop.db
+autoApproveFunctions: true
 internal:
   model: "openai"
   summaryPrompt: >

@@ -9,6 +9,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/isaacphi/slop/internal/agent"
+	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/service"
 	"github.com/isaacphi/slop/internal/shared"
 	"github.com/spf13/cobra"
@@ -26,15 +29,27 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		defer cancel()
 
 		// Initialize services
-		opts := &shared.ServiceOptions{
-			Model:       modelFlag,
-			MaxTokens:   maxTokensFlag,
-			Temperature: temperatureFlag,
+		overrides := &config.RuntimeOverrides{}
+		if modelFlag != "" {
+			overrides.ActiveModel = &modelFlag
 		}
-		chatService, err := shared.InitializeChatService(opts)
+		if maxTokensFlag > 0 {
+			overrides.MaxTokens = &maxTokensFlag
+		}
+		if temperatureFlag > 0 {
+			overrides.Temperature = &temperatureFlag
+		}
+		cfg, err := config.NewConfigWithOverrides(overrides)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		chatService, err := shared.InitializeChatService(cfg)
 		if err != nil {
 			return err
 		}
+		mcpClient := mcp.New(cfg.MCPServers)
+		agentService := agent.New(chatService, mcpClient, cfg)
 
 		// Find thread by partial ID
 		thread, err := chatService.FindThreadByPartialID(ctx, args[0])
@@ -83,7 +98,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		}
 
 		// In edit.go RunE function, replace the send logic with:
-		if err := sendMessage(ctx, chatService, sendOptions, false); err != nil {
+		if err := sendMessage(ctx, agentService, sendOptions, false); err != nil {
 			return err
 		}
 
@@ -105,7 +120,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 					continue
 				}
 
-				if err := sendMessage(ctx, chatService, sendOptions, true); err != nil {
+				if err := sendMessage(ctx, agentService, sendOptions, true); err != nil {
 					return err
 				}
 			}
@@ -126,4 +141,3 @@ func init() {
 func GetEditCommand() *cobra.Command {
 	return editCmd
 }
-

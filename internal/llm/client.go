@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -16,6 +17,17 @@ import (
 type Client struct {
 	llm    llms.Model
 	config *config.Model
+}
+
+type MessageResponse struct {
+	TextResponse string
+	ToolCalls    []ToolCall
+}
+
+type ToolCall struct {
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
 }
 
 func NewClient(modelCfg *config.Model) (*Client, error) {
@@ -78,20 +90,14 @@ func getTools(tools map[string]config.Tool) []llms.Tool {
 			}
 		}
 
-		// Add rationale to properties
-		properties["rationale"] = map[string]any{
-			"type":        "string",
-			"description": "The rationale for choosing this function call",
-		}
-
 		paramsMap := map[string]any{
 			"type":       tool.Parameters.Type,
 			"properties": properties,
-			"required":   append([]string{"rationale"}, tool.Parameters.Required...),
+			"required":   tool.Parameters.Required,
 		}
 
 		langchainTool := llms.Tool{
-			Type: tool.Type,
+			Type: "function",
 			Function: &llms.FunctionDefinition{
 				Name:        name,
 				Description: tool.Description,
@@ -107,7 +113,7 @@ func (c *Client) GetConfig() *config.Model {
 	return c.config
 }
 
-func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error) (string, error) {
+func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
@@ -118,10 +124,10 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 	}
 
 	// Convert tools to proper format
-	tools := getTools(c.config.Tools)
+	langchainTools := getTools(tools)
 
-	if len(tools) > 0 {
-		opts = append(opts, llms.WithTools(tools))
+	if len(langchainTools) > 0 {
+		opts = append(opts, llms.WithTools(langchainTools))
 	}
 
 	if stream {
@@ -133,13 +139,14 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 
 	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
-		return "", fmt.Errorf("streaming chat failed: %w", err)
+		return MessageResponse{}, fmt.Errorf("streaming chat failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
-		return "", fmt.Errorf("no response choices returned")
+		return MessageResponse{}, fmt.Errorf("no response choices returned")
 	}
 
+	toolCalls := make([]ToolCall, 0)
 	// Log the full response details
 	fmt.Printf("\nResponse object:\n")
 	for i, choice := range resp.Choices {
@@ -150,11 +157,19 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 		if len(choice.ToolCalls) > 0 {
 			fmt.Printf("  ToolCalls:\n")
 			for _, tc := range choice.ToolCalls {
+				toolCalls = append(toolCalls, ToolCall{
+					ID:        tc.ID,
+					Name:      tc.FunctionCall.Name,
+					Arguments: json.RawMessage(tc.FunctionCall.Arguments),
+				})
 				fmt.Printf("    ID: %s\n", tc.ID)
 				fmt.Printf("    Function: %+v\n", tc.FunctionCall)
 			}
 		}
 	}
 
-	return resp.Choices[0].Content, nil
+	return MessageResponse{
+		TextResponse: resp.Choices[0].Content,
+		ToolCalls:    toolCalls,
+	}, nil
 }

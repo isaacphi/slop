@@ -30,6 +30,7 @@ type Message struct {
 
 	Role      Role   `gorm:"type:text"`
 	Content   string `gorm:"type:text"`
+	ToolCalls string `gorm:"type:text"`
 	ModelName string `gorm:"type:text"`
 	Provider  string `gorm:"type:text"`
 	gorm.Model

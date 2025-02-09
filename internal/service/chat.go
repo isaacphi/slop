@@ -2,8 +2,8 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/isaacphi/slop/internal/config"
@@ -42,6 +42,7 @@ type SendMessageOptions struct {
 	Content        string
 	Stream         bool
 	StreamCallback func(chunk string) error // Required if Stream is true
+	Tools          map[string]config.Tool
 }
 
 func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
@@ -79,26 +80,28 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 	}
 
 	// Get AI response
-	var aiResponse string
+	var aiResponse llm.MessageResponse
 	if opts.Stream {
-		var fullResponse strings.Builder
-		_, err = s.llm.Chat(ctx, opts.Content, messages, true, func(chunk []byte) error {
+		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, true, func(chunk []byte) error {
 			chunkStr := string(chunk)
-			fullResponse.WriteString(chunkStr)
 			if err := opts.StreamCallback(chunkStr); err != nil {
 				return err
 			}
 			return nil
-		})
+		}, opts.Tools)
 		if err != nil {
 			return nil, fmt.Errorf("failed to stream AI response: %w", err)
 		}
-		aiResponse = fullResponse.String()
 	} else {
-		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, false, nil)
+		aiResponse, err = s.llm.Chat(ctx, opts.Content, messages, false, nil, opts.Tools)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get AI response: %w", err)
 		}
+	}
+
+	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse ToolCalls: %w", err)
 	}
 
 	// Create AI message as a reply to the user message
@@ -106,7 +109,8 @@ func (s *ChatService) SendMessage(ctx context.Context, opts SendMessageOptions) 
 		ThreadID:  opts.ThreadID,
 		ParentID:  &userMsg.ID, // AI message is a child of the user message
 		Role:      domain.RoleAssistant,
-		Content:   aiResponse,
+		Content:   aiResponse.TextResponse,
+		ToolCalls: string(toolCallsString),
 		ModelName: modelCfg.Name,
 		Provider:  modelCfg.Provider,
 	}

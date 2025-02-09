@@ -39,7 +39,10 @@ var deleteCmd = &cobra.Command{
 		if !forceFlag {
 			fmt.Print("\nAre you sure you want to delete this thread? [y/N] ")
 			var response string
-			fmt.Scanln(&response)
+			_, err := fmt.Scanln(&response)
+			if err != nil {
+				return fmt.Errorf("failed to read input: %w", err)
+			}
 
 			response = strings.ToLower(strings.TrimSpace(response))
 			if response != "y" && response != "yes" {

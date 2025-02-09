@@ -10,7 +10,6 @@ type Model struct {
 }
 
 type Tool struct {
-	Type        string     `mapstructure:"type"`
 	Name        string     `mapstructure:"name"`
 	Description string     `mapstructure:"description"`
 	Parameters  Parameters `mapstructure:"parameters"`
@@ -42,11 +41,12 @@ type MCPServer struct {
 }
 
 type ConfigSchema struct {
-	Models      map[string]Model     `mapstructure:"models"`
-	ActiveModel string               `mapstructure:"activeModel"`
-	DBPath      string               `mapstructure:"dbPath"`
-	Internal    Internal             `mapstructure:"internal"`
-	MCPServers  map[string]MCPServer `mapstructure:"mcpServers"`
+	Models               map[string]Model     `mapstructure:"models"`
+	ActiveModel          string               `mapstructure:"activeModel"`
+	DBPath               string               `mapstructure:"dbPath"`
+	Internal             Internal             `mapstructure:"internal"`
+	MCPServers           map[string]MCPServer `mapstructure:"mcpServers"`
+	AutoApproveFunctions bool                 `mapstructure:"autoApproveFunctions"`
 
 	// Internal fields for printing
 	sources  map[string][]configSource
