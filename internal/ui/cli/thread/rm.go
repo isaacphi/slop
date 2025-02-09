@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/isaacphi/slop/internal/service"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -14,19 +14,19 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete a thread and all its messages",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := service.InitializeChatService(nil)
+		messageService, err := service.InitializeMessageService(nil)
 		if err != nil {
 			return err
 		}
 
 		// Find thread by partial ID
-		thread, err := chatService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := messageService.FindThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
 		// Show thread info and confirm deletion
-		summary, err := chatService.GetThreadDetails(cmd.Context(), thread)
+		summary, err := messageService.GetThreadDetails(cmd.Context(), thread)
 		if err != nil {
 			return fmt.Errorf("failed to get thread details: %w", err)
 		}
@@ -51,7 +51,7 @@ var deleteCmd = &cobra.Command{
 			}
 		}
 
-		if err := chatService.DeleteThread(cmd.Context(), thread.ID); err != nil {
+		if err := messageService.DeleteThread(cmd.Context(), thread.ID); err != nil {
 			return fmt.Errorf("failed to delete thread: %w", err)
 		}
 

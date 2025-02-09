@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/isaacphi/slop/internal/domain"
-	"github.com/isaacphi/slop/internal/service"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -14,17 +14,17 @@ var viewCmd = &cobra.Command{
 	Short: "View messages in a thread",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := service.InitializeChatService(nil)
+		messageService, err := service.InitializeMessageService(nil)
 		if err != nil {
 			return err
 		}
 
-		thread, err := chatService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := messageService.FindThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
-		messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID, nil)
+		messages, err := messageService.GetThreadMessages(cmd.Context(), thread.ID, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get thread messages: %w", err)
 		}

@@ -15,7 +15,7 @@ import (
 	"github.com/isaacphi/slop/internal/agent"
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/mcp"
-	"github.com/isaacphi/slop/internal/service"
+	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -141,7 +141,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Initialize services
-		chatService, err := service.InitializeChatService(cfg)
+		service, err := messageService.InitializeMessageService(cfg)
 		if err != nil {
 			return err
 		}
@@ -150,7 +150,7 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		defer mcpClient.Shutdown()
-		agentService := agent.New(chatService, mcpClient, cfg)
+		agentService := agent.New(service, mcpClient, cfg)
 
 		// Get the message content
 		var message string
@@ -178,20 +178,20 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("cannot specify --target and --continue")
 		}
 		if threadFlag != "" {
-			thread, err := chatService.FindThreadByPartialID(ctx, threadFlag)
+			thread, err := service.FindThreadByPartialID(ctx, threadFlag)
 			if err != nil {
 				return err
 			}
 			threadID = thread.ID
 		} else if continueFlag {
-			thread, err := chatService.GetActiveThread(ctx)
+			thread, err := service.GetActiveThread(ctx)
 			if err != nil {
 				return err
 			}
 			threadID = thread.ID
 		} else {
 			// Create new thread
-			thread, err := chatService.NewThread(ctx)
+			thread, err := service.NewThread(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create thread: %w", err)
 			}
@@ -206,7 +206,7 @@ var sendCmd = &cobra.Command{
 		if noStreamFlag {
 			streamCallback = nil
 		}
-		sendOptions := service.SendMessageOptions{
+		sendOptions := messageService.SendMessageOptions{
 			ThreadID:       threadID,
 			Content:        message,
 			StreamCallback: streamCallback,
@@ -246,7 +246,7 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func sendMessage(ctx context.Context, agentService *agent.Agent, opts service.SendMessageOptions, isFollowup bool) error {
+func sendMessage(ctx context.Context, agentService *agent.Agent, opts messageService.SendMessageOptions, isFollowup bool) error {
 	if !isFollowup {
 		fmt.Printf("You: %s\n", opts.Content)
 	}

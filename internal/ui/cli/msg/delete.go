@@ -3,7 +3,7 @@ package msg
 import (
 	"fmt"
 
-	"github.com/isaacphi/slop/internal/service"
+	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -12,19 +12,19 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete the last message pair from a conversation",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := service.InitializeChatService(nil)
+		service, err := messageService.InitializeMessageService(nil)
 		if err != nil {
 			return err
 		}
 
 		// Find thread by partial ID
-		thread, err := chatService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := service.FindThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
 		// Get thread messages
-		messages, err := chatService.GetThreadMessages(cmd.Context(), thread.ID, nil)
+		messages, err := service.GetThreadMessages(cmd.Context(), thread.ID, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get thread messages: %w", err)
 		}
@@ -34,7 +34,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// Delete the last two messages
-		if err := chatService.DeleteLastMessages(cmd.Context(), thread.ID, 2); err != nil {
+		if err := service.DeleteLastMessages(cmd.Context(), thread.ID, 2); err != nil {
 			return fmt.Errorf("failed to delete messages: %w", err)
 		}
 

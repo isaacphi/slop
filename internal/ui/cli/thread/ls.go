@@ -6,7 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/isaacphi/slop/internal/service"
+	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -14,12 +14,12 @@ var listCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List conversation threads",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		chatService, err := service.InitializeChatService(nil)
+		service, err := messageService.InitializeMessageService(nil)
 		if err != nil {
 			return err
 		}
 
-		threads, err := chatService.ListThreads(cmd.Context(), limitFlag)
+		threads, err := service.ListThreads(cmd.Context(), limitFlag)
 		if err != nil {
 			return fmt.Errorf("failed to list threads: %w", err)
 		}
@@ -28,7 +28,7 @@ var listCmd = &cobra.Command{
 		fmt.Fprintln(w, "ID\tCreated\tMessages\tPreview")
 
 		for _, thread := range threads {
-			summary, err := chatService.GetThreadDetails(cmd.Context(), thread)
+			summary, err := service.GetThreadDetails(cmd.Context(), thread)
 			if err != nil {
 				return fmt.Errorf("failed to get thread summary: %w", err)
 			}

@@ -12,7 +12,7 @@ import (
 	"github.com/isaacphi/slop/internal/agent"
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/mcp"
-	"github.com/isaacphi/slop/internal/service"
+	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -43,21 +43,21 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
-		chatService, err := service.InitializeChatService(cfg)
+		service, err := messageService.InitializeMessageService(cfg)
 		if err != nil {
 			return err
 		}
 		mcpClient := mcp.New(cfg.MCPServers)
-		agentService := agent.New(chatService, mcpClient, cfg)
+		agentService := agent.New(service, mcpClient, cfg)
 
 		// Find thread by partial ID
-		thread, err := chatService.FindThreadByPartialID(ctx, args[0])
+		thread, err := service.FindThreadByPartialID(ctx, args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
 		// Find message by partial ID within the thread
-		targetMessage, err := chatService.FindMessageByPartialID(ctx, thread.ID, args[1])
+		targetMessage, err := service.FindMessageByPartialID(ctx, thread.ID, args[1])
 		if err != nil {
 			return fmt.Errorf("failed to find message: %w", err)
 		}
@@ -94,7 +94,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		}
 
 		// Send the new message using the parent of the target message as our parent
-		sendOptions := service.SendMessageOptions{
+		sendOptions := messageService.SendMessageOptions{
 			ThreadID:       thread.ID,
 			ParentID:       targetMessage.ParentID,
 			Content:        message,

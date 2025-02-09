@@ -10,22 +10,22 @@ import (
 	"github.com/isaacphi/slop/internal/domain"
 	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/mcp"
-	"github.com/isaacphi/slop/internal/service"
+	"github.com/isaacphi/slop/internal/message"
 )
 
-// "Agent" manages the interaction between the chat service and function calls
+// "Agent" manages the interaction between the message service and function calls
 type Agent struct {
-	chat   *service.ChatService
-	mcp    *mcp.Client
-	config *config.ConfigSchema
+	messageService *service.MessageService
+	mcp            *mcp.Client
+	config         *config.ConfigSchema
 }
 
-// New creates a new "Agent" with the given chat service and configuration
-func New(chat *service.ChatService, mcpClient *mcp.Client, cfg *config.ConfigSchema) *Agent {
+// New creates a new "Agent" with the given message service and configuration
+func New(messageService *service.MessageService, mcpClient *mcp.Client, cfg *config.ConfigSchema) *Agent {
 	return &Agent{
-		chat:   chat,
-		mcp:    mcpClient,
-		config: cfg,
+		messageService: messageService,
+		mcp:            mcpClient,
+		config:         cfg,
 	}
 }
 
@@ -141,10 +141,10 @@ func formatFunctionResult(result string) string {
 func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions) (*domain.Message, error) {
 	opts.Tools = a.mcp.GetTools()
 
-	// Start with normal chat flow
-	msg, err := a.chat.SendMessage(ctx, opts)
+	// Start with normal message flow
+	msg, err := a.messageService.SendMessage(ctx, opts)
 	if err != nil {
-		return nil, fmt.Errorf("chat service error: %w", err)
+		return nil, fmt.Errorf("message service error: %w", err)
 	}
 
 	var toolCalls []llm.ToolCall
@@ -169,13 +169,13 @@ func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions
 
 		// TODO: followups should stream and use tools
 
-		// Feed result back to chat
+		// Feed result back to message
 		followupOpts := service.SendMessageOptions{
 			ThreadID: opts.ThreadID,
 			ParentID: &msg.ID,
 			Content:  formatFunctionResult(result),
 		}
-		return a.chat.SendMessage(ctx, followupOpts)
+		return a.messageService.SendMessage(ctx, followupOpts)
 	}
 
 	// Return function call for manual approval
@@ -190,7 +190,7 @@ func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, mes
 	// TODO: handle multiple function calls or no function calls
 
 	// Get the original message
-	messages, err := a.chat.GetThreadMessages(ctx, threadID, &messageID)
+	messages, err := a.messageService.GetThreadMessages(ctx, threadID, &messageID)
 	if err != nil || len(messages) == 0 {
 		return nil, fmt.Errorf("failed to get original message: %w", err)
 	}
@@ -207,7 +207,7 @@ func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, mes
 	}
 
 	// Send result back to chat
-	return a.chat.SendMessage(ctx, service.SendMessageOptions{
+	return a.messageService.SendMessage(ctx, service.SendMessageOptions{
 		ThreadID: threadID,
 		ParentID: &messageID,
 		Content:  formatFunctionResult(result),
@@ -217,27 +217,27 @@ func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, mes
 // DenyFunctionCall handles a denied function call
 func (a *Agent) DenyFunctionCall(ctx context.Context, threadID uuid.UUID, messageID uuid.UUID, reason string) (*domain.Message, error) {
 	content := fmt.Sprintf("Function call denied: %s\nPlease suggest an alternative approach.", reason)
-	return a.chat.SendMessage(ctx, service.SendMessageOptions{
+	return a.messageService.SendMessage(ctx, service.SendMessageOptions{
 		ThreadID: threadID,
 		ParentID: &messageID,
 		Content:  content,
 	})
 }
 
-// The following methods mirror the ChatService interface for convenience
+// The following methods mirror the MessageService interface for convenience
 
 func (a *Agent) NewThread(ctx context.Context) (*domain.Thread, error) {
-	return a.chat.NewThread(ctx)
+	return a.messageService.NewThread(ctx)
 }
 
 func (a *Agent) GetActiveThread(ctx context.Context) (*domain.Thread, error) {
-	return a.chat.GetActiveThread(ctx)
+	return a.messageService.GetActiveThread(ctx)
 }
 
 func (a *Agent) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
-	return a.chat.ListThreads(ctx, limit)
+	return a.messageService.ListThreads(ctx, limit)
 }
 
 func (a *Agent) GetThreadMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
-	return a.chat.GetThreadMessages(ctx, threadID, messageID)
+	return a.messageService.GetThreadMessages(ctx, threadID, messageID)
 }

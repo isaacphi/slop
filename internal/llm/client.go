@@ -113,7 +113,7 @@ func (c *Client) GetConfig() *config.Model {
 	return c.config
 }
 
-func (c *Client) Chat(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
+func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		return callback(chunk)
 	}
@@ -139,7 +139,7 @@ func (c *Client) Chat(ctx context.Context, content string, history []domain.Mess
 
 	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
-		return MessageResponse{}, fmt.Errorf("streaming chat failed: %w", err)
+		return MessageResponse{}, fmt.Errorf("streaming message failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
