@@ -46,7 +46,6 @@ type SendMessageOptions struct {
 	Tools          map[string]config.Tool
 }
 
-// Sends a message to a thread
 func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
 	// Verify thread exists
 	thread, err := s.messageRepo.GetThreadByID(ctx, opts.ThreadID)
@@ -220,8 +219,8 @@ func InitializeMessageService(cfg *config.ConfigSchema) (*MessageService, error)
 	}
 
 	// Create the repositories and services
-	messageRepo := sqliteRepo.NewMessageRepository(db)
-	messageService, err := NewMessageService(messageRepo, cfg)
+	threadRepo := sqliteRepo.NewMessageRepository(db)
+	messageService, err := NewMessageService(threadRepo, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message service: %w", err)
 	}

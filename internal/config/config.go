@@ -61,8 +61,8 @@ type envVarConfig struct {
 
 // Environment variables to load
 var envVars = []envVarConfig{
-	{key: "llm_key", envVar: "OPENAI_API_KEY", isSecret: true},
-	{key: "llm_key", envVar: "ANTHROPIC_API_KEY", isSecret: true},
+	{key: "openai_key", envVar: "OPENAI_API_KEY", isSecret: true},
+	{key: "anthropic_key", envVar: "ANTHROPIC_API_KEY", isSecret: true},
 }
 
 func New() (*ConfigSchema, error) {
