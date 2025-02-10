@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/spf13/cobra"
@@ -17,10 +18,7 @@ var (
 		Long:  "Initialize MCP servers and display information about available tools",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load configuration
-			cfg, err := config.New(nil)
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
+			cfg := app.Get().Config
 
 			// Create and initialize MCP client
 			client := mcp.New(cfg.MCPServers)

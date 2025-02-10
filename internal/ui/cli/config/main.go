@@ -1,9 +1,7 @@
 package config
 
 import (
-	"fmt"
-
-	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/spf13/cobra"
 )
 
@@ -17,10 +15,7 @@ var (
 		Long:  "Read configuration. If prefix is included, only show configuration under that path. E.g. slop config models.openai",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.New(nil)
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
+			cfg := app.Get().Config
 
 			if len(args) > 0 {
 				prefixFilter = args[0]

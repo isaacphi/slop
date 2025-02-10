@@ -34,14 +34,17 @@ func Execute() {
 
 func init() {
 	// Add global flags for logging
-	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "INFO", "Set logging level (DEBUG, INFO, WARN, ERROR)")
+	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "", "Set logging level (DEBUG, INFO, WARN, ERROR)")
 	rootCmd.PersistentFlags().StringVar(&logFile, "log-file", "", "Log file path (defaults to stdout)")
 
 	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 		// Initialize app with logging overrides
-		overrides := &config.RuntimeOverrides{
-			LogLevel: &logLevel,
-			LogFile:  &logFile,
+		overrides := &config.RuntimeOverrides{}
+		if logLevel != "" {
+			overrides.LogLevel = &logLevel
+		}
+		if logFile != "" {
+			overrides.LogFile = &logFile
 		}
 		return app.Initialize(overrides)
 	}

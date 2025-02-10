@@ -87,6 +87,7 @@ func Cleanup() error {
 
 func setupLogger(cfg config.Log) (*slog.Logger, io.Closer, error) {
 	var level slog.Level
+
 	switch cfg.LogLevel {
 	case "DEBUG":
 		level = slog.LevelDebug

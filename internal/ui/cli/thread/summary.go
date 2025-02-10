@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/isaacphi/slop/internal/app"
-	"github.com/isaacphi/slop/internal/config"
 	internalService "github.com/isaacphi/slop/internal/internalService"
 	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
@@ -38,11 +37,6 @@ var summaryCmd = &cobra.Command{
 			messages, err := messageService.GetThreadMessages(cmd.Context(), thread.ID, nil)
 			if err != nil {
 				return fmt.Errorf("failed to get thread messages: %w", err)
-			}
-			// Load configuration
-			cfg, err := config.New(nil)
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
 			}
 			internal, err := internalService.NewInternalService(cfg)
 			if err != nil {
