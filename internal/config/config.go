@@ -43,13 +43,7 @@ The result will be: { models: ["gpt-4", "claude"] }
 type Config struct {
 	v       *viper.Viper
 	mu      sync.RWMutex
-	sources map[string][]configSource
-}
-
-// configSource tracks where each value came from
-type configSource struct {
-	value  interface{}
-	source string
+	sources map[string]string
 }
 
 // envVarConfig defines an environment variable mapping
@@ -76,7 +70,7 @@ type RuntimeOverrides struct {
 func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 	c := &Config{
 		v:       viper.New(),
-		sources: make(map[string][]configSource),
+		sources: make(map[string]string),
 	}
 
 	// Load defaults first
@@ -121,21 +115,10 @@ func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 		schema.Models[schema.ActiveModel] = activeModel
 	}
 
-	// Add sources and defaults to schema for printing
+	// Add sources to schema for printing
 	schema.sources = c.sources
-	schema.defaults = getDefaultsMap()
 
 	return schema, nil
-}
-
-// getDefaultsMap returns the default values from the embedded config
-func getDefaultsMap() map[string]interface{} {
-	v := viper.New()
-	v.SetConfigType("yaml")
-	if err := v.ReadConfig(bytes.NewBuffer(defaultConfig)); err != nil {
-		return nil
-	}
-	return v.AllSettings()
 }
 
 // loadDefaults loads the embedded default configuration
@@ -146,17 +129,8 @@ func (c *Config) loadDefaults() error {
 		return fmt.Errorf("could not read defaults: %w", err)
 	}
 
-	// Track default sources
 	settings := v.AllSettings()
-	for key, value := range settings {
-		c.sources[key] = []configSource{{
-			value:  value,
-			source: "default",
-		}}
-	}
-
-	// Merge defaults into main config
-	if err := c.mergeConfig(settings); err != nil {
+	if err := c.mergeConfig(settings, "default"); err != nil {
 		return fmt.Errorf("could not merge defaults: %w", err)
 	}
 
@@ -194,33 +168,23 @@ func (c *Config) loadConfigs() error {
 			}
 
 			settings := v.AllSettings()
-
-			// Track sources of values
-			for key, value := range settings {
-				c.sources[key] = append(c.sources[key], configSource{
-					value:  value,
-					source: f,
-				})
-			}
-
-			// Merge with existing config
-			if err := c.mergeConfig(settings); err != nil {
+			if err := c.mergeConfig(settings, f); err != nil {
 				return fmt.Errorf("error merging config from %s: %w", f, err)
 			}
 		}
 	}
 
-	// Add environment variable sources
+	// Handle environment variables
 	for _, env := range envVars {
 		if val := os.Getenv(env.envVar); val != "" {
 			displayVal := val
 			if env.isSecret {
 				displayVal = "[REDACTED]"
 			}
-			c.sources[env.key] = append(c.sources[env.key], configSource{
-				value:  displayVal,
-				source: fmt.Sprintf("%s environment variable", env.envVar),
-			})
+			// Set both value and source in one operation
+			key := strings.ToLower(env.key)
+			c.v.Set(key, displayVal)
+			c.sources[key] = fmt.Sprintf("%s environment variable", env.envVar)
 		}
 	}
 
@@ -281,19 +245,18 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	return &schema, nil
 }
 
-func (c *Config) mergeConfig(settings map[string]interface{}) error {
-	// Convert settings to flat map with dot notation
-	flat := flattenMap(settings, "")
+func (c *Config) mergeConfig(settings map[string]interface{}, source string) error {
+	// Combine flattening and source tracking in one pass
+	flat := c.flattenAndTrack(settings, "", source)
 
-	// Set each value
+	// Set each value in Viper
 	for key, value := range flat {
 		c.v.Set(key, value)
 	}
 	return nil
 }
 
-// flattenMap converts a nested map to a flat map with dot notation
-func flattenMap(m map[string]interface{}, prefix string) map[string]interface{} {
+func (c *Config) flattenAndTrack(m map[string]interface{}, prefix string, source string) map[string]interface{} {
 	result := make(map[string]interface{})
 
 	for k, v := range m {
@@ -302,10 +265,13 @@ func flattenMap(m map[string]interface{}, prefix string) map[string]interface{} 
 			key = prefix + "." + k
 		}
 
+		// Track the source
+		c.sources[key] = source
+
 		switch val := v.(type) {
 		case map[string]interface{}:
 			// Recursively flatten nested maps
-			flattened := flattenMap(val, key)
+			flattened := c.flattenAndTrack(val, key, source)
 			for fk, fv := range flattened {
 				result[fk] = fv
 			}
@@ -317,7 +283,7 @@ func flattenMap(m map[string]interface{}, prefix string) map[string]interface{} 
 					stringMap[skeyStr] = mv
 				}
 			}
-			flattened := flattenMap(stringMap, key)
+			flattened := c.flattenAndTrack(stringMap, key, source)
 			for fk, fv := range flattened {
 				result[fk] = fv
 			}

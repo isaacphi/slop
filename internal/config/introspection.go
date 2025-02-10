@@ -125,10 +125,10 @@ func IsKnownKey(known map[string]bool, key string) bool {
 
 // PrintConfig prints the configuration with optional sources in YAML format
 func (s *ConfigSchema) PrintConfig(includeSources bool, prefix string) {
-	s.printValue(reflect.ValueOf(*s), "", includeSources, 0, prefix)
+	s.printValue(reflect.ValueOf(*s), "", "", includeSources, 0, prefix)
 }
 
-func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bool, indent int, prefix string) {
+func (s *ConfigSchema) printValue(v reflect.Value, key, fullKey string, includeSources bool, indent int, prefix string) {
 	t := v.Type()
 
 	prefixParts := strings.Split(prefix, ".")
@@ -155,7 +155,13 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 			fieldValue := v.Field(i)
 			if !fieldValue.IsZero() {
 				tag := field.Tag.Get("mapstructure")
-				s.printValue(fieldValue, tag, includeSources, indent, prefixNext)
+				var nextFullKey string
+				if fullKey == "" {
+					nextFullKey = tag
+				} else {
+					nextFullKey = fullKey + "." + tag
+				}
+				s.printValue(fieldValue, tag, nextFullKey, includeSources, indent, prefixNext)
 			}
 		}
 
@@ -170,7 +176,13 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 			if !strings.HasPrefix(strings.ToLower(k), prefixPart) {
 				continue
 			}
-			s.printValue(iter.Value(), k, includeSources, indent, prefixNext)
+			var nextFullKey string
+			if fullKey == "" {
+				nextFullKey = k
+			} else {
+				nextFullKey = fullKey + "." + k
+			}
+			s.printValue(iter.Value(), k, nextFullKey, includeSources, indent, prefixNext)
 		}
 
 	default:
@@ -179,7 +191,7 @@ func (s *ConfigSchema) printValue(v reflect.Value, key string, includeSources bo
 		} else {
 			fmt.Printf("%s%s: %v", strings.Repeat("  ", indent), key, v.Interface())
 		}
-		s.printSourceInfo(key, includeSources)
+		s.printSourceInfo(fullKey, includeSources)
 		fmt.Println()
 	}
 }
@@ -189,27 +201,7 @@ func (s *ConfigSchema) printSourceInfo(key string, includeSources bool) {
 		return
 	}
 
-	// Build full key path for nested fields
-	fullKey := key
-	found := false
-	var source string
-
-	// Check direct key first
-	if sources, ok := s.sources[fullKey]; ok && len(sources) > 0 {
-		source = sources[len(sources)-1].source
-		found = true
-	}
-
-	// If not found, try lowercase key
-	if !found {
-		if sources, ok := s.sources[strings.ToLower(fullKey)]; ok && len(sources) > 0 {
-			source = sources[len(sources)-1].source
-			found = true
-		}
-	}
-
-	// Print source information
-	if found {
+	if source, ok := s.sources[strings.ToLower(key)]; ok {
 		fmt.Printf(" # (%s)", source)
 	} else {
 		fmt.Printf(" # (default)")

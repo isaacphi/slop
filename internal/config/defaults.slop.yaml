@@ -61,7 +61,8 @@ models:
           required: [location, unit]
 activeModel: openai
 dbPath: .slop/slop.db
-autoApproveFunctions: true
+agent:
+  autoApproveFunctions: true
 internal:
   model: "openai"
   summaryPrompt: >
