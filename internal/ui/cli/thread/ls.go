@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/isaacphi/slop/internal/app"
 	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,8 @@ var listCmd = &cobra.Command{
 	Use:   "ls",
 	Short: "List conversation threads",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		service, err := messageService.InitializeMessageService(nil)
+		cfg := app.Get().Config
+		service, err := messageService.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

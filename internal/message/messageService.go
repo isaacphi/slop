@@ -21,11 +21,7 @@ type MessageService struct {
 	llm         *llm.Client
 }
 
-func New(repo repository.MessageRepository, cfg *config.ConfigSchema) (*MessageService, error) {
-	modelCfg, ok := cfg.Models[cfg.ActiveModel]
-	if !ok {
-		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
-	}
+func New(repo repository.MessageRepository, modelCfg config.Model) (*MessageService, error) {
 
 	llmClient, err := llm.NewClient(modelCfg)
 	if err != nil {
@@ -204,8 +200,14 @@ func (s *MessageService) FindMessageByPartialID(ctx context.Context, threadID uu
 	return s.messageRepo.FindMessageByPartialID(ctx, threadID, partialID)
 }
 
+type MessageServiceOverrides struct {
+	ActiveModel *string
+	MaxTokens   *int
+	Temperature *float64
+}
+
 // InitializeMessageService creates and initializes the message service with all required dependencies
-func InitializeMessageService(cfg *config.ConfigSchema) (*MessageService, error) {
+func InitializeMessageService(cfg *config.ConfigSchema, overrides *MessageServiceOverrides) (*MessageService, error) {
 	// Initialize the database connection
 	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
 	if err != nil {
@@ -220,7 +222,27 @@ func InitializeMessageService(cfg *config.ConfigSchema) (*MessageService, error)
 
 	// Create the repositories and services
 	threadRepo := sqliteRepo.NewMessageRepository(db)
-	messageService, err := New(threadRepo, cfg)
+
+	modelName := cfg.ActiveModel
+	if overrides != nil {
+		if overrides.ActiveModel != nil {
+			modelName = *overrides.ActiveModel
+		}
+	}
+	modelConfig, exists := cfg.Models[modelName]
+	if !exists {
+		return nil, fmt.Errorf("Model %s not found in config", modelName)
+	}
+	if overrides != nil {
+		if overrides.MaxTokens != nil {
+			modelConfig.MaxTokens = *overrides.MaxTokens
+		}
+		if overrides.Temperature != nil {
+			modelConfig.Temperature = *overrides.Temperature
+		}
+	}
+
+	messageService, err := New(threadRepo, modelConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message service: %w", err)
 	}

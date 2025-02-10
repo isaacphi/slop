@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,8 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete a thread and all its messages",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		messageService, err := service.InitializeMessageService(nil)
+		cfg := app.Get().Config
+		messageService, err := service.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

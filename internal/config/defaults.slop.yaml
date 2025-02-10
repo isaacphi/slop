@@ -59,7 +59,7 @@ models:
               type: string
               enum: [fahrenheit, celsius]
           required: [location, unit]
-activeModel: openai
+activeModel: claude
 dbPath: .slop/slop.db
 agent:
   autoApproveFunctions: true

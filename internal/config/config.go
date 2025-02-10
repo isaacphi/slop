@@ -3,7 +3,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,11 +17,10 @@ Config System Design:
 This configuration system implements a hierarchical config with the following precedence
 (highest to lowest priority):
 
-1. Environment variables for secrets
+1. Command line overrides
 2. Local project config (.slop/*.slop.{yaml,json})
 3. Global user config ($XDG_CONFIG_HOME/slop/*.slop.{yaml,json})
 4. Default values (from defaults.slop.yaml)
-5. JSON and YAML support
 
 The system supports:
 - Multiple config files in each directory, merged alphabetically
@@ -30,7 +28,6 @@ The system supports:
 - Deep merging of maps
 - Override of scalar values
 - Schema validation of the final config
-- Easy addition of new environment variable mappings
 
 Example:
 If you have these files:
@@ -41,36 +38,24 @@ The result will be: { models: ["gpt-4", "claude"] }
 
 // Config holds the configuration state
 type Config struct {
-	v       *viper.Viper
-	mu      sync.RWMutex
-	sources map[string]string
-}
-
-// envVarConfig defines an environment variable mapping
-type envVarConfig struct {
-	key      string // Key in the config
-	envVar   string // Environment variable name
-	isSecret bool   // Whether to redact in logs
-}
-
-// Environment variables to load
-var envVars = []envVarConfig{
-	{key: "openai_key", envVar: "OPENAI_API_KEY", isSecret: true},
-	{key: "anthropic_key", envVar: "ANTHROPIC_API_KEY", isSecret: true},
+	v        *viper.Viper
+	mu       sync.RWMutex
+	sources  map[string]string
+	warnings []string
 }
 
 // RuntimeOverrides holds configuration values that can be overridden at runtime
 // via CLI flags or other means
 type RuntimeOverrides struct {
-	ActiveModel *string
-	MaxTokens   *int
-	Temperature *float64
+	LogLevel *string
+	LogFile  *string
 }
 
 func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 	c := &Config{
-		v:       viper.New(),
-		sources: make(map[string]string),
+		v:        viper.New(),
+		sources:  make(map[string]string),
+		warnings: make([]string, 0),
 	}
 
 	// Load defaults first
@@ -78,17 +63,9 @@ func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 		return nil, fmt.Errorf("error loading defaults: %w", err)
 	}
 
-	// Load configs and environment variables
+	// Load configs
 	if err := c.loadConfigs(); err != nil {
 		return nil, err
-	}
-
-	// Check for unknown keys using schema
-	known := GetKnownKeys()
-	for _, key := range c.v.AllKeys() {
-		if !IsKnownKey(known, key) {
-			log.Printf("Warning: Found configuration value not in schema: %v", key)
-		}
 	}
 
 	// Validate and create type-safe config
@@ -99,24 +76,19 @@ func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 
 	// Apply overrides
 	if overrides != nil {
-		if overrides.ActiveModel != nil {
-			if _, exists := schema.Models[*overrides.ActiveModel]; !exists {
-				return nil, fmt.Errorf("model %q not found in configuration", *overrides.ActiveModel)
-			}
-			schema.ActiveModel = *overrides.ActiveModel
+		if overrides.LogFile != nil {
+			schema.Log.LogFile = *overrides.LogFile
+			c.sources["log.logFile"] = "override"
 		}
-		activeModel := schema.Models[schema.ActiveModel]
-		if overrides.MaxTokens != nil {
-			activeModel.MaxTokens = *overrides.MaxTokens
+		if overrides.LogLevel != nil {
+			schema.Log.LogLevel = *overrides.LogLevel
+			c.sources["log.logLevel"] = "override"
 		}
-		if overrides.Temperature != nil {
-			activeModel.Temperature = *overrides.Temperature
-		}
-		schema.Models[schema.ActiveModel] = activeModel
 	}
 
 	// Add sources to schema for printing
 	schema.sources = c.sources
+	schema.warnings = c.warnings
 
 	return schema, nil
 }
@@ -173,21 +145,6 @@ func (c *Config) loadConfigs() error {
 			}
 		}
 	}
-
-	// Handle environment variables
-	for _, env := range envVars {
-		if val := os.Getenv(env.envVar); val != "" {
-			displayVal := val
-			if env.isSecret {
-				displayVal = "[REDACTED]"
-			}
-			// Set both value and source in one operation
-			key := strings.ToLower(env.key)
-			c.v.Set(key, displayVal)
-			c.sources[key] = fmt.Sprintf("%s environment variable", env.envVar)
-		}
-	}
-
 	return nil
 }
 

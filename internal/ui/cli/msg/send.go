@@ -13,7 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/agent"
-	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/mcp"
 	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
@@ -125,8 +125,8 @@ var sendCmd = &cobra.Command{
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		// Get config
-		overrides := &config.RuntimeOverrides{}
+		// Initialize services
+		overrides := &messageService.MessageServiceOverrides{}
 		if modelFlag != "" {
 			overrides.ActiveModel = &modelFlag
 		}
@@ -136,13 +136,10 @@ var sendCmd = &cobra.Command{
 		if temperatureFlag > 0 {
 			overrides.Temperature = &temperatureFlag
 		}
-		cfg, err := config.New(overrides)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+		cfg := app.Get().Config
 
 		// Initialize services
-		service, err := messageService.InitializeMessageService(cfg)
+		service, err := messageService.InitializeMessageService(cfg, overrides)
 		if err != nil {
 			return err
 		}
@@ -153,10 +150,10 @@ var sendCmd = &cobra.Command{
 		defer mcpClient.Shutdown()
 		agentService := agent.New(service, mcpClient, cfg.Agent)
 
-		// Get the message content
-		var message string
+		// Get the initialMessage content
+		var initialMessage string
 		if len(args) > 0 {
-			message = strings.Join(args, " ")
+			initialMessage = strings.Join(args, " ")
 		} else {
 			// Check for piped input
 			stat, _ := os.Stdin.Stat()
@@ -165,11 +162,11 @@ var sendCmd = &cobra.Command{
 				if err != nil {
 					return fmt.Errorf("failed to read piped input: %w", err)
 				}
-				message = strings.TrimSpace(string(bytes))
+				initialMessage = strings.TrimSpace(string(bytes))
 			}
 		}
 
-		if message == "" {
+		if initialMessage == "" {
 			return fmt.Errorf("no message provided")
 		}
 
@@ -209,7 +206,7 @@ var sendCmd = &cobra.Command{
 		}
 		sendOptions := messageService.SendMessageOptions{
 			ThreadID:       threadID,
-			Content:        message,
+			Content:        initialMessage,
 			StreamCallback: streamCallback,
 		}
 
@@ -223,7 +220,7 @@ var sendCmd = &cobra.Command{
 			reader := bufio.NewReader(os.Stdin)
 			for {
 				fmt.Print("\nYou: ")
-				message, err := reader.ReadString('\n')
+				followupMessage, err := reader.ReadString('\n')
 				if err == io.EOF {
 					break
 				}
@@ -231,12 +228,12 @@ var sendCmd = &cobra.Command{
 					return fmt.Errorf("failed to read input: %w", err)
 				}
 
-				message = strings.TrimSpace(message)
-				if message == "" {
+				followupMessage = strings.TrimSpace(followupMessage)
+				if followupMessage == "" {
 					continue
 				}
 
-				sendOptions.Content = message
+				sendOptions.Content = followupMessage
 				if err := sendMessage(ctx, agentService, sendOptions, true); err != nil {
 					return err
 				}

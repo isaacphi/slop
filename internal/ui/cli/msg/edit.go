@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/isaacphi/slop/internal/agent"
-	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/mcp"
 	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
@@ -28,7 +28,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		defer cancel()
 
 		// Initialize services
-		overrides := &config.RuntimeOverrides{}
+		overrides := &messageService.MessageServiceOverrides{}
 		if modelFlag != "" {
 			overrides.ActiveModel = &modelFlag
 		}
@@ -38,12 +38,9 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		if temperatureFlag > 0 {
 			overrides.Temperature = &temperatureFlag
 		}
-		cfg, err := config.New(overrides)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
+		cfg := app.Get().Config
 
-		service, err := messageService.InitializeMessageService(cfg)
+		service, err := messageService.InitializeMessageService(cfg, overrides)
 		if err != nil {
 			return err
 		}
@@ -62,10 +59,10 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 			return fmt.Errorf("failed to find message: %w", err)
 		}
 
-		// Get the message content
-		var message string
+		// Get the initialMessage content
+		var initialMessage string
 		if len(args) > 2 {
-			message = strings.Join(args[2:], " ")
+			initialMessage = strings.Join(args[2:], " ")
 		} else {
 			// Check for piped input
 			stat, _ := os.Stdin.Stat()
@@ -74,11 +71,11 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 				if err != nil {
 					return fmt.Errorf("failed to read piped input: %w", err)
 				}
-				message = strings.TrimSpace(string(bytes))
+				initialMessage = strings.TrimSpace(string(bytes))
 			}
 		}
 
-		if message == "" {
+		if initialMessage == "" {
 			return fmt.Errorf("no message provided")
 		}
 
@@ -97,7 +94,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		sendOptions := messageService.SendMessageOptions{
 			ThreadID:       thread.ID,
 			ParentID:       targetMessage.ParentID,
-			Content:        message,
+			Content:        initialMessage,
 			StreamCallback: streamCallback,
 		}
 
@@ -111,7 +108,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 			reader := bufio.NewReader(os.Stdin)
 			for {
 				fmt.Print("\nYou: ")
-				message, err := reader.ReadString('\n')
+				followupMessage, err := reader.ReadString('\n')
 				if err == io.EOF {
 					break
 				}
@@ -119,8 +116,8 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 					return fmt.Errorf("failed to read input: %w", err)
 				}
 
-				message = strings.TrimSpace(message)
-				if message == "" {
+				followupMessage = strings.TrimSpace(followupMessage)
+				if followupMessage == "" {
 					continue
 				}
 

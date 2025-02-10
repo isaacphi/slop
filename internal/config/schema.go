@@ -45,6 +45,12 @@ type Agent struct {
 	AutoApproveFunctions bool `mapstructure:"autoApproveFunctions"`
 }
 
+// Logs
+type Log struct {
+	LogLevel string `mapstructure:"logLevel"`
+	LogFile  string `mapstructure:"logFile"`
+}
+
 type ConfigSchema struct {
 	Models      map[string]Model     `mapstructure:"models"`
 	ActiveModel string               `mapstructure:"activeModel"`
@@ -52,7 +58,9 @@ type ConfigSchema struct {
 	Internal    Internal             `mapstructure:"internal"`
 	MCPServers  map[string]MCPServer `mapstructure:"mcpServers"`
 	Agent       Agent                `mapstructure:"agent"`
+	Log         Log                  `mapstructure:"log"`
 
 	// Internal fields for printing
-	sources map[string]string
+	sources  map[string]string
+	warnings []string
 }

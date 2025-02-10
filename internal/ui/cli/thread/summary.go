@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/config"
 	internalService "github.com/isaacphi/slop/internal/internalService"
 	messageService "github.com/isaacphi/slop/internal/message"
@@ -16,7 +17,8 @@ var summaryCmd = &cobra.Command{
 	Long:  "Write a summary for a thread. Leave [summary] blank to auto generate a slop summary",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		messageService, err := messageService.InitializeMessageService(nil)
+		cfg := app.Get().Config
+		messageService, err := messageService.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

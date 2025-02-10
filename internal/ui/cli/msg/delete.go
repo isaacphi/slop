@@ -3,6 +3,7 @@ package msg
 import (
 	"fmt"
 
+	"github.com/isaacphi/slop/internal/app"
 	messageService "github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
@@ -12,7 +13,9 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete the last message pair from a conversation",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		service, err := messageService.InitializeMessageService(nil)
+		cfg := app.Get().Config
+
+		service, err := messageService.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}
