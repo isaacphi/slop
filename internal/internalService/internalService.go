@@ -11,27 +11,23 @@ import (
 
 type InternalService struct {
 	llm *llm.Client
-	cfg *config.Internal
+	cfg config.Internal
 }
 
-func NewInternalService() (*InternalService, error) {
-	cfg, err := config.New()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
+func NewInternalService(cfg *config.ConfigSchema) (*InternalService, error) {
 	modelCfg, ok := cfg.Models[cfg.Internal.Model]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
 	}
 
-	llmClient, err := llm.NewClient(&modelCfg)
+	llmClient, err := llm.NewClient(modelCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client for internal service: %w", err)
 	}
 
 	return &InternalService{
 		llm: llmClient,
-		cfg: &cfg.Internal,
+		cfg: cfg.Internal,
 	}, nil
 }
 

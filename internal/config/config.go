@@ -65,7 +65,15 @@ var envVars = []envVarConfig{
 	{key: "anthropic_key", envVar: "ANTHROPIC_API_KEY", isSecret: true},
 }
 
-func New() (*ConfigSchema, error) {
+// RuntimeOverrides holds configuration values that can be overridden at runtime
+// via CLI flags or other means
+type RuntimeOverrides struct {
+	ActiveModel *string
+	MaxTokens   *int
+	Temperature *float64
+}
+
+func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 	c := &Config{
 		v:       viper.New(),
 		sources: make(map[string][]configSource),
@@ -93,6 +101,24 @@ func New() (*ConfigSchema, error) {
 	schema, err := c.validateConfig()
 	if err != nil {
 		return nil, fmt.Errorf("config validation error: %w", err)
+	}
+
+	// Apply overrides
+	if overrides != nil {
+		if overrides.ActiveModel != nil {
+			if _, exists := schema.Models[*overrides.ActiveModel]; !exists {
+				return nil, fmt.Errorf("model %q not found in configuration", *overrides.ActiveModel)
+			}
+			schema.ActiveModel = *overrides.ActiveModel
+		}
+		activeModel := schema.Models[schema.ActiveModel]
+		if overrides.MaxTokens != nil {
+			activeModel.MaxTokens = *overrides.MaxTokens
+		}
+		if overrides.Temperature != nil {
+			activeModel.Temperature = *overrides.Temperature
+		}
+		schema.Models[schema.ActiveModel] = activeModel
 	}
 
 	// Add sources and defaults to schema for printing

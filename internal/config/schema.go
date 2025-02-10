@@ -40,13 +40,18 @@ type MCPServer struct {
 	Env     map[string]string `mapstructure:"env"`
 }
 
+// "Agent"
+type Agent struct {
+	AutoApproveFunctions bool `mapstructure:"autoApproveFunctions"`
+}
+
 type ConfigSchema struct {
-	Models               map[string]Model     `mapstructure:"models"`
-	ActiveModel          string               `mapstructure:"activeModel"`
-	DBPath               string               `mapstructure:"dbPath"`
-	Internal             Internal             `mapstructure:"internal"`
-	MCPServers           map[string]MCPServer `mapstructure:"mcpServers"`
-	AutoApproveFunctions bool                 `mapstructure:"autoApproveFunctions"`
+	Models      map[string]Model     `mapstructure:"models"`
+	ActiveModel string               `mapstructure:"activeModel"`
+	DBPath      string               `mapstructure:"dbPath"`
+	Internal    Internal             `mapstructure:"internal"`
+	MCPServers  map[string]MCPServer `mapstructure:"mcpServers"`
+	Agent       Agent                `mapstructure:"agent"`
 
 	// Internal fields for printing
 	sources  map[string][]configSource

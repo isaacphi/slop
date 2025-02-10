@@ -15,8 +15,8 @@ import (
 )
 
 type Client struct {
-	llm    llms.Model
-	config *config.Model
+	llm      llms.Model
+	modelCfg config.Model
 }
 
 type MessageResponse struct {
@@ -30,7 +30,7 @@ type ToolCall struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
-func NewClient(modelCfg *config.Model) (*Client, error) {
+func NewClient(modelCfg config.Model) (*Client, error) {
 	var llm llms.Model
 	var err error
 
@@ -59,8 +59,8 @@ func NewClient(modelCfg *config.Model) (*Client, error) {
 	}
 
 	return &Client{
-		llm:    llm,
-		config: modelCfg,
+		llm:      llm,
+		modelCfg: modelCfg,
 	}, nil
 }
 
@@ -109,8 +109,8 @@ func getTools(tools map[string]config.Tool) []llms.Tool {
 	return result
 }
 
-func (c *Client) GetConfig() *config.Model {
-	return c.config
+func (c *Client) GetConfig() config.Model {
+	return c.modelCfg
 }
 
 func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
@@ -119,8 +119,8 @@ func (c *Client) SendMessage(ctx context.Context, content string, history []doma
 	}
 
 	opts := []llms.CallOption{
-		llms.WithTemperature(c.config.Temperature),
-		llms.WithMaxTokens(c.config.MaxTokens),
+		llms.WithTemperature(c.modelCfg.Temperature),
+		llms.WithMaxTokens(c.modelCfg.MaxTokens),
 	}
 
 	// Convert tools to proper format

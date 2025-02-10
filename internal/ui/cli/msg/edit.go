@@ -38,7 +38,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		if temperatureFlag > 0 {
 			overrides.Temperature = &temperatureFlag
 		}
-		cfg, err := config.NewConfigWithOverrides(overrides)
+		cfg, err := config.New(overrides)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
@@ -48,7 +48,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 			return err
 		}
 		mcpClient := mcp.New(cfg.MCPServers)
-		agentService := agent.New(service, mcpClient, cfg)
+		agentService := agent.New(service, mcpClient, cfg.Agent)
 
 		// Find thread by partial ID
 		thread, err := service.FindThreadByPartialID(ctx, args[0])

@@ -17,7 +17,7 @@ var (
 		Long:  "Initialize MCP servers and display information about available tools",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Load configuration
-			cfg, err := config.New()
+			cfg, err := config.New(nil)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}

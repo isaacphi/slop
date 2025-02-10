@@ -27,7 +27,7 @@ func NewMessageService(repo repository.MessageRepository, cfg *config.ConfigSche
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
 	}
 
-	llmClient, err := llm.NewClient(&modelCfg)
+	llmClient, err := llm.NewClient(modelCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create LLM client: %w", err)
 	}

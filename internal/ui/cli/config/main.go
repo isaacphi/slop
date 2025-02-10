@@ -17,7 +17,7 @@ var (
 		Long:  "Read configuration. If prefix is included, only show configuration under that path. E.g. slop config models.openai",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, err := config.New()
+			cfg, err := config.New(nil)
 			if err != nil {
 				return fmt.Errorf("failed to load config: %w", err)
 			}

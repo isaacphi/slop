@@ -17,15 +17,15 @@ import (
 type Agent struct {
 	messageService *service.MessageService
 	mcp            *mcp.Client
-	config         *config.ConfigSchema
+	cfg            config.Agent
 }
 
 // New creates a new "Agent" with the given message service and configuration
-func New(messageService *service.MessageService, mcpClient *mcp.Client, cfg *config.ConfigSchema) *Agent {
+func New(messageService *service.MessageService, mcpClient *mcp.Client, cfg config.Agent) *Agent {
 	return &Agent{
 		messageService: messageService,
 		mcp:            mcpClient,
-		config:         cfg,
+		cfg:            cfg,
 	}
 }
 
@@ -161,7 +161,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions
 	toolCall := toolCalls[0]
 
 	// Handle function call based on auto-approve setting
-	if a.config.AutoApproveFunctions {
+	if a.cfg.AutoApproveFunctions {
 		result, err := a.executeFunction(ctx, toolCall, opts.Tools)
 		if err != nil {
 			return nil, fmt.Errorf("function execution error: %w", err)

@@ -135,7 +135,7 @@ var sendCmd = &cobra.Command{
 		if temperatureFlag > 0 {
 			overrides.Temperature = &temperatureFlag
 		}
-		cfg, err := config.NewConfigWithOverrides(overrides)
+		cfg, err := config.New(overrides)
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
@@ -150,7 +150,7 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		defer mcpClient.Shutdown()
-		agentService := agent.New(service, mcpClient, cfg)
+		agentService := agent.New(service, mcpClient, cfg.Agent)
 
 		// Get the message content
 		var message string
