@@ -51,6 +51,7 @@ type RuntimeOverrides struct {
 	LogFile  *string
 }
 
+// Instantiate a new ConfigSchema
 func New(overrides *RuntimeOverrides) (*ConfigSchema, error) {
 	c := &Config{
 		v:        viper.New(),
@@ -109,6 +110,7 @@ func (c *Config) loadDefaults() error {
 	return nil
 }
 
+// Load all configuration files
 func (c *Config) loadConfigs() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -169,6 +171,7 @@ func findConfigFiles(dir string) ([]string, error) {
 	return files, nil
 }
 
+// Validate the config against the schema and custom rules
 func (c *Config) validateConfig() (*ConfigSchema, error) {
 	var schema ConfigSchema
 	if err := c.v.Unmarshal(&schema); err != nil {
@@ -202,6 +205,7 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	return &schema, nil
 }
 
+// Merge settings into the main Config.v viper instance
 func (c *Config) mergeConfig(settings map[string]interface{}, source string) error {
 	// Combine flattening and source tracking in one pass
 	flat := c.flattenAndTrack(settings, "", source)
@@ -213,6 +217,7 @@ func (c *Config) mergeConfig(settings map[string]interface{}, source string) err
 	return nil
 }
 
+// Build a map of js style dot notation settings to their source
 func (c *Config) flattenAndTrack(m map[string]interface{}, prefix string, source string) map[string]interface{} {
 	result := make(map[string]interface{})
 
