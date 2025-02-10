@@ -121,6 +121,7 @@ var sendCmd = &cobra.Command{
 	Short: "Send messages to an LLM",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create cancellable context
+		// TODO: do I need this, or should I just use cmd context?
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 

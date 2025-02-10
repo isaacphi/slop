@@ -115,6 +115,7 @@ func (c *Client) GetConfig() config.Model {
 
 func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
+		// TODO: callback should include context and have same signature to remove wrappedCallback
 		return callback(chunk)
 	}
 

@@ -21,7 +21,7 @@ type MessageService struct {
 	llm         *llm.Client
 }
 
-func NewMessageService(repo repository.MessageRepository, cfg *config.ConfigSchema) (*MessageService, error) {
+func New(repo repository.MessageRepository, cfg *config.ConfigSchema) (*MessageService, error) {
 	modelCfg, ok := cfg.Models[cfg.ActiveModel]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
@@ -220,7 +220,7 @@ func InitializeMessageService(cfg *config.ConfigSchema) (*MessageService, error)
 
 	// Create the repositories and services
 	threadRepo := sqliteRepo.NewMessageRepository(db)
-	messageService, err := NewMessageService(threadRepo, cfg)
+	messageService, err := New(threadRepo, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create message service: %w", err)
 	}
