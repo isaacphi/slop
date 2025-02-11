@@ -29,93 +29,6 @@ var (
 	temperatureFlag float64
 )
 
-// Handles function call detection and formatting
-func functionCallStreamHandler(originalCallback func([]byte) error) func([]byte) error {
-	// Use a closure to encapsulate the state of the streamed function call
-	handler := &FunctionCallHandler{}
-
-	return func(chunk []byte) error {
-		// Try to detect start of function call if not already in one
-		if !handler.inFunctionCall {
-			if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
-				handler.inFunctionCall = true
-				handler.functionName = functionChunk.Name
-				fmt.Printf("\n\n[Requesting tool use: %s]", functionChunk.Name)
-				return nil
-			}
-			return originalCallback(chunk)
-		}
-
-		// Accumulate and format function call arguments
-		if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
-			handler.argBuffer.WriteString(functionChunk.Arguments)
-			fmt.Print(formatPartialJSON(functionChunk.Arguments, handler))
-			return nil
-		}
-		return nil
-	}
-}
-
-// FunctionCallHandler manages streaming function call state
-type FunctionCallHandler struct {
-	inFunctionCall bool
-	functionName   string
-	argBuffer      strings.Builder
-	inQuote        bool
-	escaped        bool
-}
-
-type FunctionCallChunk struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) (FunctionCallChunk, error) {
-	var fcall []struct {
-		Function FunctionCallChunk `json:"function"`
-	}
-	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil {
-		return fcall[0].Function, nil
-	} else {
-		return FunctionCallChunk{}, err
-	}
-}
-
-// formatPartialJSON formats JSON chunks for display
-func formatPartialJSON(partial string, handler *FunctionCallHandler) string {
-	// TODO: support multiple tool calls
-	var formatted strings.Builder
-
-	for _, char := range partial {
-		switch {
-		case handler.escaped:
-			// Handle escaped character
-			formatted.WriteRune(char)
-			handler.escaped = false
-		case char == '\\':
-			// Start of escape sequence
-			formatted.WriteRune(char)
-			handler.escaped = true
-		case char == '"':
-			// Toggle quote state
-			handler.inQuote = !handler.inQuote
-		case char == '{' && !handler.inQuote:
-			formatted.WriteRune('\n')
-		case char == '}' && !handler.inQuote:
-			formatted.WriteRune('\n')
-		case char == ',' && !handler.inQuote:
-			formatted.WriteRune('\n')
-		case char == ' ' && !handler.inQuote:
-		case char == ':' && !handler.inQuote:
-			formatted.WriteString(": ")
-		default:
-			formatted.WriteRune(char)
-		}
-	}
-	// return partial
-	return formatted.String()
-}
-
 var sendCmd = &cobra.Command{
 	Use:   "send [message]",
 	Short: "Send messages to an LLM",
@@ -281,6 +194,93 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts messageSer
 
 	fmt.Println()
 	return nil
+}
+
+// Handles function call detection and formatting
+func functionCallStreamHandler(originalCallback func([]byte) error) func([]byte) error {
+	// Use a closure to encapsulate the state of the streamed function call
+	handler := &FunctionCallHandler{}
+
+	return func(chunk []byte) error {
+		// Try to detect start of function call if not already in one
+		if !handler.inFunctionCall {
+			if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
+				handler.inFunctionCall = true
+				handler.functionName = functionChunk.Name
+				fmt.Printf("\n\n[Requesting tool use: %s]", functionChunk.Name)
+				return nil
+			}
+			return originalCallback(chunk)
+		}
+
+		// Accumulate and format function call arguments
+		if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
+			handler.argBuffer.WriteString(functionChunk.Arguments)
+			fmt.Print(formatPartialJSON(functionChunk.Arguments, handler))
+			return nil
+		}
+		return nil
+	}
+}
+
+// FunctionCallHandler manages streaming function call state
+type FunctionCallHandler struct {
+	inFunctionCall bool
+	functionName   string
+	argBuffer      strings.Builder
+	inQuote        bool
+	escaped        bool
+}
+
+type FunctionCallChunk struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) (FunctionCallChunk, error) {
+	var fcall []struct {
+		Function FunctionCallChunk `json:"function"`
+	}
+	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil {
+		return fcall[0].Function, nil
+	} else {
+		return FunctionCallChunk{}, err
+	}
+}
+
+// formatPartialJSON formats JSON chunks for display
+func formatPartialJSON(partial string, handler *FunctionCallHandler) string {
+	// TODO: support multiple tool calls
+	var formatted strings.Builder
+
+	for _, char := range partial {
+		switch {
+		case handler.escaped:
+			// Handle escaped character
+			formatted.WriteRune(char)
+			handler.escaped = false
+		case char == '\\':
+			// Start of escape sequence
+			formatted.WriteRune(char)
+			handler.escaped = true
+		case char == '"':
+			// Toggle quote state
+			handler.inQuote = !handler.inQuote
+		case char == '{' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == '}' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == ',' && !handler.inQuote:
+			formatted.WriteRune('\n')
+		case char == ' ' && !handler.inQuote:
+		case char == ':' && !handler.inQuote:
+			formatted.WriteString(": ")
+		default:
+			formatted.WriteRune(char)
+		}
+	}
+	// return partial
+	return formatted.String()
 }
 
 func init() {

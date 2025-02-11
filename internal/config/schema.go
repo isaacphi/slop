@@ -22,9 +22,13 @@ type Parameters struct {
 }
 
 type Property struct {
-	Type        string   `mapstructure:"type"`
-	Description string   `mapstructure:"description"`
-	Enum        []string `mapstructure:"enum"`
+	Type        string              `mapstructure:"type"`
+	Description string              `mapstructure:"description"`
+	Enum        []string            `mapstructure:"enum"`
+	Items       *Property           `mapstructure:"items"`      // For array types
+	Properties  map[string]Property `mapstructure:"properties"` // For object types
+	Required    []string            `mapstructure:"required"`   // For object types
+	Default     interface{}         `mapstructure:"default"`    // For properties with default values
 }
 
 // Internal configuration settings

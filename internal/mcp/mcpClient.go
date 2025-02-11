@@ -154,7 +154,6 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 	return nil
 }
 
-// parseSchema converts a JSON schema map into Parameters struct
 func parseSchema(schema map[string]interface{}) config.Parameters {
 	params := config.Parameters{
 		Properties: make(map[string]config.Property),
@@ -176,29 +175,66 @@ func parseSchema(schema map[string]interface{}) config.Parameters {
 	if props, ok := schema["properties"].(map[string]interface{}); ok {
 		for name, propInterface := range props {
 			if propMap, ok := propInterface.(map[string]interface{}); ok {
-				property := config.Property{}
-
-				if t, ok := propMap["type"].(string); ok {
-					property.Type = t
-				}
-				if desc, ok := propMap["description"].(string); ok {
-					property.Description = desc
-				}
-				if enum, ok := propMap["enum"].([]interface{}); ok {
-					property.Enum = make([]string, 0, len(enum))
-					for _, e := range enum {
-						if str, ok := e.(string); ok {
-							property.Enum = append(property.Enum, str)
-						}
-					}
-				}
-
+				property := parseProperty(propMap)
 				params.Properties[name] = property
 			}
 		}
 	}
 
 	return params
+}
+
+func parseProperty(propMap map[string]interface{}) config.Property {
+	property := config.Property{}
+
+	if t, ok := propMap["type"].(string); ok {
+		property.Type = t
+	}
+
+	if desc, ok := propMap["description"].(string); ok {
+		property.Description = desc
+	}
+
+	if enum, ok := propMap["enum"].([]interface{}); ok {
+		property.Enum = make([]string, 0, len(enum))
+		for _, e := range enum {
+			if str, ok := e.(string); ok {
+				property.Enum = append(property.Enum, str)
+			}
+		}
+	}
+
+	if def, ok := propMap["default"]; ok {
+		property.Default = def
+	}
+
+	// Handle array items
+	if items, ok := propMap["items"].(map[string]interface{}); ok {
+		itemsProp := parseProperty(items)
+		property.Items = &itemsProp
+	}
+
+	// Handle nested object properties
+	if props, ok := propMap["properties"].(map[string]interface{}); ok {
+		property.Properties = make(map[string]config.Property)
+		for name, p := range props {
+			if pMap, ok := p.(map[string]interface{}); ok {
+				property.Properties[name] = parseProperty(pMap)
+			}
+		}
+	}
+
+	// Handle nested required fields
+	if required, ok := propMap["required"].([]interface{}); ok {
+		property.Required = make([]string, 0, len(required))
+		for _, r := range required {
+			if str, ok := r.(string); ok {
+				property.Required = append(property.Required, str)
+			}
+		}
+	}
+
+	return property
 }
 
 // CallTool calls a tool using its fully qualified name (serverName.toolName)

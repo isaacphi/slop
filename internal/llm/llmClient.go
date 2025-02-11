@@ -81,20 +81,7 @@ func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
 func getTools(tools map[string]config.Tool) []llms.Tool {
 	var result []llms.Tool
 	for name, tool := range tools {
-		// Convert properties to map[string]any
-		properties := make(map[string]any)
-		for pName, prop := range tool.Parameters.Properties {
-			properties[pName] = map[string]any{
-				"type":        prop.Type,
-				"description": prop.Description,
-			}
-		}
-
-		paramsMap := map[string]any{
-			"type":       tool.Parameters.Type,
-			"properties": properties,
-			"required":   tool.Parameters.Required,
-		}
+		paramsMap := convertParameters(tool.Parameters)
 
 		langchainTool := llms.Tool{
 			Type: "function",
@@ -106,6 +93,58 @@ func getTools(tools map[string]config.Tool) []llms.Tool {
 		}
 		result = append(result, langchainTool)
 	}
+	return result
+}
+
+func convertParameters(params config.Parameters) map[string]any {
+	properties := make(map[string]any)
+
+	for pName, prop := range params.Properties {
+		properties[pName] = convertProperty(prop)
+	}
+
+	return map[string]any{
+		"type":       params.Type,
+		"properties": properties,
+		"required":   params.Required,
+	}
+}
+
+func convertProperty(prop config.Property) map[string]any {
+	result := map[string]any{
+		"type":        prop.Type,
+		"description": prop.Description,
+	}
+
+	// Add enum if present
+	if len(prop.Enum) > 0 {
+		result["enum"] = prop.Enum
+	}
+
+	// Add default if present
+	if prop.Default != nil {
+		result["default"] = prop.Default
+	}
+
+	// Handle array items
+	if prop.Type == "array" && prop.Items != nil {
+		result["items"] = convertProperty(*prop.Items)
+	}
+
+	// Handle nested object properties
+	if prop.Type == "object" && len(prop.Properties) > 0 {
+		nestedProps := make(map[string]any)
+		for name, p := range prop.Properties {
+			nestedProps[name] = convertProperty(p)
+		}
+		result["properties"] = nestedProps
+
+		// Add required fields for nested object if present
+		if len(prop.Required) > 0 {
+			result["required"] = prop.Required
+		}
+	}
+
 	return result
 }
 
