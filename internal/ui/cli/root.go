@@ -53,7 +53,9 @@ func init() {
 		return app.Cleanup()
 	}
 
+	// Remove "completions" command
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
 	rootCmd.AddCommand(
 		configCmd.ConfigCmd,
 		msg.MsgCmd,

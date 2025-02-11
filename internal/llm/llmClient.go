@@ -14,6 +14,8 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
+// The LLM Client handles calls to llms
+// it is currently a wrapper around langchaingo
 type Client struct {
 	llm      llms.Model
 	modelCfg config.Model

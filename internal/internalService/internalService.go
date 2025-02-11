@@ -9,6 +9,8 @@ import (
 	"github.com/isaacphi/slop/internal/llm"
 )
 
+// InternalService is used for LLM calls within the application itself
+// such as for summarizing threads
 type InternalService struct {
 	llm *llm.Client
 	cfg config.Internal
