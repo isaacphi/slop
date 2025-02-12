@@ -147,6 +147,8 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		return nil, fmt.Errorf("message service error: %w", err)
 	}
 
+	opts.StreamHandler.HandleMessageDone()
+
 	var toolCalls []llm.ToolCall
 	err = json.Unmarshal([]byte(responseMsg.ToolCalls), &toolCalls)
 	if err != nil {

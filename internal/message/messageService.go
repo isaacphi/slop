@@ -77,20 +77,26 @@ func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOption
 	// Create stream callback if handler is provided
 	var streamCallback func([]byte) error
 	if opts.StreamHandler != nil {
-		inFunctionCall := false
+		// inFunctionCall := false
+		// var currentFunctionName string
+		var currentFunctionId string
 
 		streamCallback = func(chunk []byte) error {
 			// Try to parse as function call first
 			var fcall []struct {
 				Function FunctionCallChunk `json:"function"`
+				Id       *string           `json:"id,omitempty"`
 			}
 			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
 				// This is a function call chunk
-				if !inFunctionCall {
-					if err := opts.StreamHandler.HandleFunctionCallStart(fcall[0].Function.Name); err != nil {
+				functionName := fcall[0].Function.Name
+				functionId := fcall[0].Id
+				if functionId != nil && currentFunctionId != *functionId {
+					if err := opts.StreamHandler.HandleFunctionCallStart(*functionId, functionName); err != nil {
 						return err
 					}
-					inFunctionCall = true
+					currentFunctionId = *functionId
+					// inFunctionCall = true
 				}
 				return opts.StreamHandler.HandleFunctionCallChunk(fcall[0].Function)
 			}

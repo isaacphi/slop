@@ -190,22 +190,22 @@ func (c *Client) SendMessage(ctx context.Context, content string, history []doma
 
 	toolCalls := make([]ToolCall, 0)
 	// Log the full response details
-	fmt.Printf("\nResponse object:\n")
-	for i, choice := range resp.Choices {
-		fmt.Printf("Choice %d:\n", i)
-		fmt.Printf("  Content: %s\n", choice.Content)
-		fmt.Printf("  StopReason: %s\n", choice.StopReason)
-		fmt.Printf("  GenerationInfo: %+v\n", choice.GenerationInfo)
+	// fmt.Printf("\nResponse object:\n")
+	for _, choice := range resp.Choices {
+		// fmt.Printf("Choice %d:\n", i)
+		// fmt.Printf("  Content: %s\n", choice.Content)
+		// fmt.Printf("  StopReason: %s\n", choice.StopReason)
+		// fmt.Printf("  GenerationInfo: %+v\n", choice.GenerationInfo)
 		if len(choice.ToolCalls) > 0 {
-			fmt.Printf("  ToolCalls:\n")
+			// fmt.Printf("  ToolCalls:\n")
 			for _, tc := range choice.ToolCalls {
 				toolCalls = append(toolCalls, ToolCall{
 					ID:        tc.ID,
 					Name:      tc.FunctionCall.Name,
 					Arguments: json.RawMessage(tc.FunctionCall.Arguments),
 				})
-				fmt.Printf("    ID: %s\n", tc.ID)
-				fmt.Printf("    Function: %+v\n", tc.FunctionCall)
+				// fmt.Printf("    ID: %s\n", tc.ID)
+				// fmt.Printf("    Function: %+v\n", tc.FunctionCall)
 			}
 		}
 	}

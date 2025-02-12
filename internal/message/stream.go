@@ -11,7 +11,8 @@ type FunctionCallChunk struct {
 
 type StreamHandler interface {
 	HandleTextChunk(chunk []byte) error
-	HandleFunctionCallStart(name string) error
+	HandleMessageDone() error
+	HandleFunctionCallStart(id, name string) error
 	HandleFunctionCallChunk(chunk FunctionCallChunk) error
 	Reset()
 }

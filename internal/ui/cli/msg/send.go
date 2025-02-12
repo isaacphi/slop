@@ -193,14 +193,22 @@ type CLIStreamHandler struct {
 	originalCallback func([]byte) error
 	inQuote          bool
 	escaped          bool
+	indentLevel      int
+	inArray          bool
+	isValue          bool // Tracks if we're after a colon to handle YAML formatting
 }
 
 func (h *CLIStreamHandler) HandleTextChunk(chunk []byte) error {
 	return h.originalCallback(chunk)
 }
 
-func (h *CLIStreamHandler) HandleFunctionCallStart(name string) error {
-	fmt.Printf("\n\n[Requesting tool use: %s]\n", name)
+func (h *CLIStreamHandler) HandleMessageDone() error {
+	fmt.Print("\n\n")
+	return nil
+}
+
+func (h *CLIStreamHandler) HandleFunctionCallStart(id, name string) error {
+	fmt.Printf("\n\n[Requesting tool use: %s]", name)
 	return nil
 }
 
@@ -214,33 +222,84 @@ func (h *CLIStreamHandler) Reset() {
 	h.escaped = false
 }
 
-// formatJSON formats JSON for CLI display with proper indentation and line breaks
 func (h *CLIStreamHandler) formatJSON(data string) string {
 	var formatted strings.Builder
+
+	writeIndent := func() {
+		for i := 0; i < h.indentLevel; i++ {
+			formatted.WriteString("  ")
+		}
+	}
 
 	for _, char := range data {
 		switch {
 		case h.escaped:
-			// Handle escaped character
 			formatted.WriteRune(char)
 			h.escaped = false
+
 		case char == '\\':
-			// Start of escape sequence
 			formatted.WriteRune(char)
 			h.escaped = true
+
 		case char == '"':
-			// Toggle quote state
-			h.inQuote = !h.inQuote
+			// For YAML, we generally don't need the quotes unless there's special characters
+			if !h.inQuote {
+				// Starting a quote - don't write it
+				h.inQuote = true
+			} else {
+				// Ending a quote - don't write it
+				h.inQuote = false
+			}
+
+		case char == '[' && !h.inQuote:
+			h.inArray = true
+			h.indentLevel++
+			formatted.WriteString("\n")
+			writeIndent()
+			formatted.WriteString("- ")
+
+		case char == ']' && !h.inQuote:
+			h.indentLevel--
+			h.inArray = false
+
 		case char == '{' && !h.inQuote:
-			formatted.WriteRune('\n')
+			if h.inArray {
+				writeIndent()
+			}
+			h.indentLevel++
+			formatted.WriteString("\n")
+			writeIndent()
+
 		case char == '}' && !h.inQuote:
-			formatted.WriteRune('\n')
+			h.indentLevel--
+			h.isValue = false
+
 		case char == ',' && !h.inQuote:
-			formatted.WriteString("\n\n")
-		case char == ' ' && !h.inQuote:
+			h.isValue = false
+			formatted.WriteString("\n")
+			if h.inArray {
+				writeIndent()
+				formatted.WriteString("- ")
+			} else {
+				writeIndent()
+			}
+
 		case char == ':' && !h.inQuote:
-			formatted.WriteString(": \n")
+			h.isValue = true
+			formatted.WriteString(": ")
+
+		case char == ' ' && !h.inQuote:
+			// Only keep spaces that are part of actual values
+			if h.isValue {
+				formatted.WriteRune(char)
+			}
+
 		default:
+			if h.inArray && !h.isValue && !h.inQuote {
+				// If we're starting a new array element
+				formatted.WriteString("- ")
+				h.isValue = true
+			}
 			formatted.WriteRune(char)
 		}
 	}
