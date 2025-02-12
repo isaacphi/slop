@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/isaacphi/slop/internal/app"
-	messageService "github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +15,7 @@ var deleteCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := app.Get().Config
 
-		service, err := messageService.InitializeMessageService(cfg, nil)
+		service, err := message.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

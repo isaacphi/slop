@@ -12,7 +12,7 @@ import (
 	"github.com/isaacphi/slop/internal/agent"
 	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/mcp"
-	messageService "github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +28,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		defer cancel()
 
 		// Initialize services
-		overrides := &messageService.MessageServiceOverrides{}
+		overrides := &message.MessageServiceOverrides{}
 		if modelFlag != "" {
 			overrides.ActiveModel = &modelFlag
 		}
@@ -40,7 +40,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		}
 		cfg := app.Get().Config
 
-		service, err := messageService.InitializeMessageService(cfg, overrides)
+		service, err := message.InitializeMessageService(cfg, overrides)
 		if err != nil {
 			return err
 		}
@@ -91,7 +91,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		}
 
 		// Send the new message using the parent of the target message as our parent
-		sendOptions := messageService.SendMessageOptions{
+		sendOptions := message.SendMessageOptions{
 			ThreadID:       thread.ID,
 			ParentID:       targetMessage.ParentID,
 			Content:        initialMessage,

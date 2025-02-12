@@ -1,4 +1,4 @@
-package service
+package message
 
 import (
 	"context"

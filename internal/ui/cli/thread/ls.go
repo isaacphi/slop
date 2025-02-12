@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/isaacphi/slop/internal/app"
-	messageService "github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +16,7 @@ var listCmd = &cobra.Command{
 	Short: "List conversation threads",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := app.Get().Config
-		service, err := messageService.InitializeMessageService(cfg, nil)
+		service, err := message.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

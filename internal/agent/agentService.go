@@ -15,13 +15,13 @@ import (
 
 // "Agent" manages the interaction between the message service and function calls
 type Agent struct {
-	messageService *service.MessageService
+	messageService *message.MessageService
 	mcp            *mcp.Client
 	cfg            config.Agent
 }
 
 // New creates a new "Agent" with the given message service and configuration
-func New(messageService *service.MessageService, mcpClient *mcp.Client, cfg config.Agent) *Agent {
+func New(messageService *message.MessageService, mcpClient *mcp.Client, cfg config.Agent) *Agent {
 	return &Agent{
 		messageService: messageService,
 		mcp:            mcpClient,
@@ -138,7 +138,7 @@ func formatFunctionResult(result string) string {
 }
 
 // SendMessage sends a message through the "Agent", handling any function calls
-func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions) (*domain.Message, error) {
+func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions) (*domain.Message, error) {
 	opts.Tools = a.mcp.GetTools()
 
 	// Start with normal message flow
@@ -170,7 +170,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts service.SendMessageOptions
 		// TODO: followups should stream and use tools
 
 		// Feed result back to message
-		followupOpts := service.SendMessageOptions{
+		followupOpts := message.SendMessageOptions{
 			ThreadID: opts.ThreadID,
 			ParentID: &responseMsg.ID,
 			Content:  formatFunctionResult(result),
@@ -207,7 +207,7 @@ func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, mes
 	}
 
 	// Send result back to chat
-	return a.messageService.SendMessage(ctx, service.SendMessageOptions{
+	return a.messageService.SendMessage(ctx, message.SendMessageOptions{
 		ThreadID: threadID,
 		ParentID: &messageID,
 		Content:  formatFunctionResult(result),
@@ -217,27 +217,9 @@ func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, mes
 // DenyFunctionCall handles a denied function call
 func (a *Agent) DenyFunctionCall(ctx context.Context, threadID uuid.UUID, messageID uuid.UUID, reason string) (*domain.Message, error) {
 	content := fmt.Sprintf("Function call denied: %s\nPlease suggest an alternative approach.", reason)
-	return a.messageService.SendMessage(ctx, service.SendMessageOptions{
+	return a.messageService.SendMessage(ctx, message.SendMessageOptions{
 		ThreadID: threadID,
 		ParentID: &messageID,
 		Content:  content,
 	})
-}
-
-// The following methods mirror the MessageService interface for convenience
-
-func (a *Agent) NewThread(ctx context.Context) (*domain.Thread, error) {
-	return a.messageService.NewThread(ctx)
-}
-
-func (a *Agent) GetActiveThread(ctx context.Context) (*domain.Thread, error) {
-	return a.messageService.GetActiveThread(ctx)
-}
-
-func (a *Agent) ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error) {
-	return a.messageService.ListThreads(ctx, limit)
-}
-
-func (a *Agent) GetThreadMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID) ([]domain.Message, error) {
-	return a.messageService.GetThreadMessages(ctx, threadID, messageID)
 }

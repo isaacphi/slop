@@ -16,7 +16,7 @@ var viewCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := app.Get().Config
-		messageService, err := service.InitializeMessageService(cfg, nil)
+		messageService, err := message.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}

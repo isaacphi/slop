@@ -15,7 +15,7 @@ import (
 	"github.com/isaacphi/slop/internal/agent"
 	"github.com/isaacphi/slop/internal/app"
 	"github.com/isaacphi/slop/internal/mcp"
-	messageService "github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +39,7 @@ var sendCmd = &cobra.Command{
 		defer cancel()
 
 		// Initialize services
-		overrides := &messageService.MessageServiceOverrides{}
+		overrides := &message.MessageServiceOverrides{}
 		if modelFlag != "" {
 			overrides.ActiveModel = &modelFlag
 		}
@@ -52,7 +52,7 @@ var sendCmd = &cobra.Command{
 		cfg := app.Get().Config
 
 		// Initialize services
-		service, err := messageService.InitializeMessageService(cfg, overrides)
+		service, err := message.InitializeMessageService(cfg, overrides)
 		if err != nil {
 			return err
 		}
@@ -117,7 +117,7 @@ var sendCmd = &cobra.Command{
 		if noStreamFlag {
 			streamCallback = nil
 		}
-		sendOptions := messageService.SendMessageOptions{
+		sendOptions := message.SendMessageOptions{
 			ThreadID:       threadID,
 			Content:        initialMessage,
 			StreamCallback: streamCallback,
@@ -157,7 +157,7 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func sendMessage(ctx context.Context, agentService *agent.Agent, opts messageService.SendMessageOptions, isFollowup bool) error {
+func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.SendMessageOptions, isFollowup bool) error {
 	if !isFollowup {
 		fmt.Printf("You: %s\n", opts.Content)
 	}

@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/isaacphi/slop/internal/app"
-	internalService "github.com/isaacphi/slop/internal/internalService"
-	messageService "github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/internalService"
+	"github.com/isaacphi/slop/internal/message"
 	"github.com/spf13/cobra"
 )
 
@@ -17,7 +17,7 @@ var summaryCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg := app.Get().Config
-		messageService, err := messageService.InitializeMessageService(cfg, nil)
+		messageService, err := message.InitializeMessageService(cfg, nil)
 		if err != nil {
 			return err
 		}
@@ -38,7 +38,7 @@ var summaryCmd = &cobra.Command{
 			if err != nil {
 				return fmt.Errorf("failed to get thread messages: %w", err)
 			}
-			internal, err := internalService.NewInternalService(cfg)
+			internal, err := internal.NewInternalService(cfg)
 			if err != nil {
 				return fmt.Errorf("failed to initialize internal service: %w", err)
 			}
