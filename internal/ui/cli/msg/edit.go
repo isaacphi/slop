@@ -81,21 +81,11 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 
 		fmt.Println(targetMessage.ID, targetMessage.Content)
 
-		// Set StreamCallback
-		streamCallback := func(chunk []byte) error {
-			fmt.Print(string(chunk))
-			return nil
-		}
-		if noStreamFlag {
-			streamCallback = nil
-		}
-
 		// Send the new message using the parent of the target message as our parent
 		sendOptions := message.SendMessageOptions{
-			ThreadID:       thread.ID,
-			ParentID:       targetMessage.ParentID,
-			Content:        initialMessage,
-			StreamCallback: streamCallback,
+			ThreadID: thread.ID,
+			ParentID: targetMessage.ParentID,
+			Content:  initialMessage,
 		}
 
 		// In edit.go RunE function, replace the send logic with:

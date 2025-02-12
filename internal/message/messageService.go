@@ -11,9 +11,6 @@ import (
 	"github.com/isaacphi/slop/internal/domain"
 	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/repository"
-	sqliteRepo "github.com/isaacphi/slop/internal/repository/sqlite"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 type MessageService struct {
@@ -35,11 +32,11 @@ func New(repo repository.MessageRepository, modelCfg config.Model) (*MessageServ
 }
 
 type SendMessageOptions struct {
-	ThreadID       uuid.UUID
-	ParentID       *uuid.UUID // Optional: message to reply to. If nil, starts a new conversation
-	Content        string
-	StreamCallback func(chunk []byte) error
-	Tools          map[string]config.Tool
+	ThreadID      uuid.UUID
+	ParentID      *uuid.UUID // Optional: message to reply to. If nil, starts a new conversation
+	Content       string
+	StreamHandler StreamHandler
+	Tools         map[string]config.Tool
 }
 
 func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
@@ -77,7 +74,32 @@ func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOption
 	}
 
 	// Get AI response
-	aiResponse, err := s.llm.SendMessage(ctx, opts.Content, messages, opts.StreamCallback != nil, opts.StreamCallback, opts.Tools)
+	// Create stream callback if handler is provided
+	var streamCallback func([]byte) error
+	if opts.StreamHandler != nil {
+		inFunctionCall := false
+
+		streamCallback = func(chunk []byte) error {
+			// Try to parse as function call first
+			var fcall []struct {
+				Function FunctionCallChunk `json:"function"`
+			}
+			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
+				// This is a function call chunk
+				if !inFunctionCall {
+					if err := opts.StreamHandler.HandleFunctionCallStart(fcall[0].Function.Name); err != nil {
+						return err
+					}
+					inFunctionCall = true
+				}
+				return opts.StreamHandler.HandleFunctionCallChunk(fcall[0].Function)
+			}
+			// Regular text chunk
+			return opts.StreamHandler.HandleTextChunk(chunk)
+		}
+	}
+
+	aiResponse, err := s.llm.SendMessage(ctx, opts.Content, messages, opts.StreamHandler != nil, streamCallback, opts.Tools)
 	if err != nil {
 		return nil, fmt.Errorf("failed to stream AI response: %w", err)
 	}
@@ -204,48 +226,4 @@ type MessageServiceOverrides struct {
 	ActiveModel *string
 	MaxTokens   *int
 	Temperature *float64
-}
-
-// InitializeMessageService creates and initializes the message service with all required dependencies
-func InitializeMessageService(cfg *config.ConfigSchema, overrides *MessageServiceOverrides) (*MessageService, error) {
-	// Initialize the database connection
-	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// AutoMigrate
-	err = db.AutoMigrate(&domain.Thread{}, &domain.Message{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
-	}
-
-	// Create the repositories and services
-	threadRepo := sqliteRepo.NewMessageRepository(db)
-
-	modelName := cfg.ActiveModel
-	if overrides != nil {
-		if overrides.ActiveModel != nil {
-			modelName = *overrides.ActiveModel
-		}
-	}
-	modelConfig, exists := cfg.Models[modelName]
-	if !exists {
-		return nil, fmt.Errorf("Model %s not found in config", modelName)
-	}
-	if overrides != nil {
-		if overrides.MaxTokens != nil {
-			modelConfig.MaxTokens = *overrides.MaxTokens
-		}
-		if overrides.Temperature != nil {
-			modelConfig.Temperature = *overrides.Temperature
-		}
-	}
-
-	messageService, err := New(threadRepo, modelConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create message service: %w", err)
-	}
-
-	return messageService, nil
 }

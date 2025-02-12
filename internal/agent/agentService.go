@@ -175,6 +175,12 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 			ParentID: &responseMsg.ID,
 			Content:  formatFunctionResult(result),
 		}
+
+		// Reset stream handler state if one was provided
+		if opts.StreamHandler != nil {
+			opts.StreamHandler.Reset()
+			followupOpts.StreamHandler = opts.StreamHandler
+		}
 		return a.messageService.SendMessage(ctx, followupOpts)
 	}
 

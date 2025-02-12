@@ -3,7 +3,6 @@ package msg
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -109,18 +108,9 @@ var sendCmd = &cobra.Command{
 			threadID = thread.ID
 		}
 
-		// Set StreamCallback
-		streamCallback := func(chunk []byte) error {
-			fmt.Print(string(chunk))
-			return nil
-		}
-		if noStreamFlag {
-			streamCallback = nil
-		}
 		sendOptions := message.SendMessageOptions{
-			ThreadID:       threadID,
-			Content:        initialMessage,
-			StreamCallback: streamCallback,
+			ThreadID: threadID,
+			Content:  initialMessage,
 		}
 
 		// Send initial message
@@ -164,8 +154,10 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.Se
 	fmt.Print("Slop: ")
 
 	if !noStreamFlag {
-		origCallback := opts.StreamCallback
-		opts.StreamCallback = functionCallStreamHandler(origCallback)
+		opts.StreamHandler = &CLIStreamHandler{originalCallback: func(chunk []byte) error {
+			fmt.Print(string(chunk))
+			return nil
+		}}
 	}
 
 	errCh := make(chan error, 1)
@@ -197,89 +189,61 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.Se
 }
 
 // Handles function call detection and formatting
-func functionCallStreamHandler(originalCallback func([]byte) error) func([]byte) error {
-	// Use a closure to encapsulate the state of the streamed function call
-	handler := &FunctionCallHandler{}
-
-	return func(chunk []byte) error {
-		// Try to detect start of function call if not already in one
-		if !handler.inFunctionCall {
-			if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
-				handler.inFunctionCall = true
-				handler.functionName = functionChunk.Name
-				fmt.Printf("\n\n[Requesting tool use: %s]", functionChunk.Name)
-				return nil
-			}
-			return originalCallback(chunk)
-		}
-
-		// Accumulate and format function call arguments
-		if functionChunk, err := handler.tryParseFunctionChunk(string(chunk)); err == nil {
-			handler.argBuffer.WriteString(functionChunk.Arguments)
-			fmt.Print(formatPartialJSON(functionChunk.Arguments, handler))
-			return nil
-		}
-		return nil
-	}
+type CLIStreamHandler struct {
+	originalCallback func([]byte) error
+	inQuote          bool
+	escaped          bool
 }
 
-// FunctionCallHandler manages streaming function call state
-type FunctionCallHandler struct {
-	inFunctionCall bool
-	functionName   string
-	argBuffer      strings.Builder
-	inQuote        bool
-	escaped        bool
+func (h *CLIStreamHandler) HandleTextChunk(chunk []byte) error {
+	return h.originalCallback(chunk)
 }
 
-type FunctionCallChunk struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+func (h *CLIStreamHandler) HandleFunctionCallStart(name string) error {
+	fmt.Printf("\n\n[Requesting tool use: %s]\n", name)
+	return nil
 }
 
-func (h *FunctionCallHandler) tryParseFunctionChunk(chunk string) (FunctionCallChunk, error) {
-	var fcall []struct {
-		Function FunctionCallChunk `json:"function"`
-	}
-	if err := json.Unmarshal([]byte(chunk), &fcall); err == nil {
-		return fcall[0].Function, nil
-	} else {
-		return FunctionCallChunk{}, err
-	}
+func (h *CLIStreamHandler) HandleFunctionCallChunk(chunk message.FunctionCallChunk) error {
+	fmt.Print(h.formatJSON(chunk.ArgumentsJson))
+	return nil
 }
 
-// formatPartialJSON formats JSON chunks for display
-func formatPartialJSON(partial string, handler *FunctionCallHandler) string {
-	// TODO: support multiple tool calls
+func (h *CLIStreamHandler) Reset() {
+	h.inQuote = false
+	h.escaped = false
+}
+
+// formatJSON formats JSON for CLI display with proper indentation and line breaks
+func (h *CLIStreamHandler) formatJSON(data string) string {
 	var formatted strings.Builder
 
-	for _, char := range partial {
+	for _, char := range data {
 		switch {
-		case handler.escaped:
+		case h.escaped:
 			// Handle escaped character
 			formatted.WriteRune(char)
-			handler.escaped = false
+			h.escaped = false
 		case char == '\\':
 			// Start of escape sequence
 			formatted.WriteRune(char)
-			handler.escaped = true
+			h.escaped = true
 		case char == '"':
 			// Toggle quote state
-			handler.inQuote = !handler.inQuote
-		case char == '{' && !handler.inQuote:
+			h.inQuote = !h.inQuote
+		case char == '{' && !h.inQuote:
 			formatted.WriteRune('\n')
-		case char == '}' && !handler.inQuote:
+		case char == '}' && !h.inQuote:
 			formatted.WriteRune('\n')
-		case char == ',' && !handler.inQuote:
-			formatted.WriteRune('\n')
-		case char == ' ' && !handler.inQuote:
-		case char == ':' && !handler.inQuote:
-			formatted.WriteString(": ")
+		case char == ',' && !h.inQuote:
+			formatted.WriteString("\n\n")
+		case char == ' ' && !h.inQuote:
+		case char == ':' && !h.inQuote:
+			formatted.WriteString(": \n")
 		default:
 			formatted.WriteRune(char)
 		}
 	}
-	// return partial
 	return formatted.String()
 }
 
