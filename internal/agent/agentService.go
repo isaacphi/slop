@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/config"
@@ -132,11 +133,6 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 	return string(resultBytes), nil
 }
 
-// formatFunctionResult formats a function result for sending back to the LLM
-func formatFunctionResult(result string) string {
-	return fmt.Sprintf("Function executed with result:\n\n%s\n", result)
-}
-
 // SendMessage sends a message through the "Agent", handling any function calls
 func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions) (*domain.Message, error) {
 	opts.Tools = a.mcp.GetTools()
@@ -147,7 +143,12 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		return nil, fmt.Errorf("message service error: %w", err)
 	}
 
-	opts.StreamHandler.HandleMessageDone()
+	_ = opts.StreamHandler.HandleMessageDone()
+
+	// Reset stream handler
+	if opts.StreamHandler != nil {
+		opts.StreamHandler.Reset()
+	}
 
 	var toolCalls []llm.ToolCall
 	err = json.Unmarshal([]byte(responseMsg.ToolCalls), &toolCalls)
@@ -160,66 +161,73 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		return responseMsg, nil
 	}
 
-	toolCall := toolCalls[0]
+	// Create channels for collecting results
+	type toolResult struct {
+		call   llm.ToolCall
+		result string
+		err    error
+	}
+	resultChan := make(chan toolResult, len(toolCalls))
 
-	// Handle function call based on auto-approve setting
-	if a.cfg.AutoApproveFunctions {
-		result, err := a.executeFunction(ctx, toolCall, opts.Tools)
-		if err != nil {
-			return nil, fmt.Errorf("function execution error: %w", err)
+	// Launch concurrent execution of all tool calls
+	for _, call := range toolCalls {
+		go func(tc llm.ToolCall) {
+			if a.cfg.AutoApproveFunctions {
+				result, err := a.executeFunction(ctx, tc, opts.Tools)
+				resultChan <- toolResult{
+					call:   tc,
+					result: result,
+					err:    err,
+				}
+			}
+		}(call)
+	}
+
+	// Collect all results
+	var combinedResults strings.Builder
+	combinedResults.WriteString("Tool call results:\n\n")
+
+	for i := 0; i < len(toolCalls); i++ {
+		res := <-resultChan
+
+		// Format the tool call header
+		fmt.Fprintf(&combinedResults, "Name: %s\n", res.call.Name)
+		fmt.Fprintf(&combinedResults, "ID: %s\n", res.call.ID)
+		fmt.Fprintf(&combinedResults, "Arguments: %s\n", string(res.call.Arguments))
+		fmt.Fprint(&combinedResults, "Result:\n")
+
+		// Add result or error
+		if res.err != nil {
+			fmt.Fprintf(&combinedResults, "Error: %v\n", res.err)
+		} else {
+			fmt.Fprintf(&combinedResults, "%s\n", res.result)
 		}
 
-		// TODO: followups should stream and use tools
-
-		// Feed result back to message
-		followupOpts := message.SendMessageOptions{
-			ThreadID: opts.ThreadID,
-			ParentID: &responseMsg.ID,
-			Content:  formatFunctionResult(result),
+		// Add separator between results unless it's the last one
+		if i < len(toolCalls)-1 {
+			combinedResults.WriteString("\n")
 		}
+	}
 
-		// Reset stream handler state if one was provided
-		if opts.StreamHandler != nil {
-			opts.StreamHandler.Reset()
-			followupOpts.StreamHandler = opts.StreamHandler
+	// If auto-approve is disabled, return for manual approval with first tool call
+	if !a.cfg.AutoApproveFunctions {
+		return responseMsg, &PendingFunctionCallError{
+			Message:  responseMsg,
+			ToolCall: toolCalls[0],
 		}
-		return a.messageService.SendMessage(ctx, followupOpts)
 	}
 
-	// Return function call for manual approval
-	return responseMsg, &PendingFunctionCallError{
-		Message:  responseMsg,
-		ToolCall: toolCall,
-	}
-}
+	fmt.Printf("\n%s\n", combinedResults.String())
 
-// ApproveFunctionCall executes a previously pending function call
-func (a *Agent) ApproveFunctionCall(ctx context.Context, threadID uuid.UUID, messageID uuid.UUID, tools map[string]config.Tool) (*domain.Message, error) {
-	// TODO: handle multiple function calls or no function calls
-
-	// Get the original message
-	messages, err := a.messageService.GetThreadMessages(ctx, threadID, &messageID)
-	if err != nil || len(messages) == 0 {
-		return nil, fmt.Errorf("failed to get original message: %w", err)
+	// Send combined results as followup message
+	followupOpts := message.SendMessageOptions{
+		ThreadID:      opts.ThreadID,
+		ParentID:      &responseMsg.ID,
+		Content:       combinedResults.String(),
+		StreamHandler: opts.StreamHandler,
 	}
 
-	var toolCalls []llm.ToolCall
-	err = json.Unmarshal([]byte(messages[0].ToolCalls), &toolCalls)
-	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling tool calls: %w", err)
-	}
-
-	result, err := a.executeFunction(ctx, toolCalls[0], tools)
-	if err != nil {
-		return nil, fmt.Errorf("function execution error: %w", err)
-	}
-
-	// Send result back to chat
-	return a.messageService.SendMessage(ctx, message.SendMessageOptions{
-		ThreadID: threadID,
-		ParentID: &messageID,
-		Content:  formatFunctionResult(result),
-	})
+	return a.SendMessage(ctx, followupOpts)
 }
 
 // DenyFunctionCall handles a denied function call

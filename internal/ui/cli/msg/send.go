@@ -114,7 +114,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Send initial message
-		if err := sendMessage(ctx, agentService, sendOptions, false); err != nil {
+		if err := sendMessage(ctx, agentService, sendOptions); err != nil {
 			return err
 		}
 
@@ -122,7 +122,6 @@ var sendCmd = &cobra.Command{
 		if followupFlag {
 			reader := bufio.NewReader(os.Stdin)
 			for {
-				fmt.Print("\nYou: ")
 				followupMessage, err := reader.ReadString('\n')
 				if err == io.EOF {
 					break
@@ -137,7 +136,7 @@ var sendCmd = &cobra.Command{
 				}
 
 				sendOptions.Content = followupMessage
-				if err := sendMessage(ctx, agentService, sendOptions, true); err != nil {
+				if err := sendMessage(ctx, agentService, sendOptions); err != nil {
 					return err
 				}
 			}
@@ -147,12 +146,7 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.SendMessageOptions, isFollowup bool) error {
-	if !isFollowup {
-		fmt.Printf("You: %s\n", opts.Content)
-	}
-	fmt.Print("Slop: ")
-
+func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.SendMessageOptions) error {
 	if !noStreamFlag {
 		opts.StreamHandler = &CLIStreamHandler{originalCallback: func(chunk []byte) error {
 			fmt.Print(string(chunk))

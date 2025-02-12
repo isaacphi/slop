@@ -89,7 +89,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		}
 
 		// In edit.go RunE function, replace the send logic with:
-		if err := sendMessage(ctx, agentService, sendOptions, false); err != nil {
+		if err := sendMessage(ctx, agentService, sendOptions); err != nil {
 			return err
 		}
 
@@ -97,7 +97,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 		if followupFlag {
 			reader := bufio.NewReader(os.Stdin)
 			for {
-				fmt.Print("\nYou: ")
+				fmt.Print("\nReply: ")
 				followupMessage, err := reader.ReadString('\n')
 				if err == io.EOF {
 					break
@@ -111,7 +111,7 @@ Both threadID and messageID can be partial IDs - they will match the first threa
 					continue
 				}
 
-				if err := sendMessage(ctx, agentService, sendOptions, true); err != nil {
+				if err := sendMessage(ctx, agentService, sendOptions); err != nil {
 					return err
 				}
 			}
