@@ -1,4 +1,4 @@
-models:
+modelPresets:
   gemini:
     provider: googleai
     name: gemini-1.5-flash

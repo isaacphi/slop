@@ -33,7 +33,7 @@ func InitializeMessageService(cfg *config.ConfigSchema, overrides *MessageServic
 			modelName = *overrides.ActiveModel
 		}
 	}
-	modelConfig, exists := cfg.Models[modelName]
+	modelConfig, exists := cfg.ModelPresets[modelName]
 	if !exists {
 		return nil, fmt.Errorf("Model %s not found in config", modelName)
 	}

@@ -19,7 +19,7 @@ type MessageService struct {
 	llm         *llm.Client
 }
 
-func New(repo repository.MessageRepository, modelCfg config.Model) (*MessageService, error) {
+func New(repo repository.MessageRepository, modelCfg config.ModelPreset) (*MessageService, error) {
 
 	llmClient, err := llm.NewClient(modelCfg)
 	if err != nil {

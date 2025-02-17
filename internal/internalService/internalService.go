@@ -17,7 +17,7 @@ type InternalService struct {
 }
 
 func NewInternalService(cfg *config.ConfigSchema) (*InternalService, error) {
-	modelCfg, ok := cfg.Models[cfg.Internal.Model]
+	modelCfg, ok := cfg.ModelPresets[cfg.Internal.Model]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
 	}

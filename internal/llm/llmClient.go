@@ -19,7 +19,7 @@ import (
 // it is currently a wrapper around langchaingo
 type Client struct {
 	llm      llms.Model
-	modelCfg config.Model
+	modelCfg config.ModelPreset
 }
 
 type MessageResponse struct {
@@ -33,7 +33,7 @@ type ToolCall struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
-func NewClient(modelCfg config.Model) (*Client, error) {
+func NewClient(modelCfg config.ModelPreset) (*Client, error) {
 	var llm llms.Model
 	var err error
 
@@ -151,7 +151,7 @@ func convertProperty(prop config.Property) map[string]any {
 	return result
 }
 
-func (c *Client) GetConfig() config.Model {
+func (c *Client) GetConfig() config.ModelPreset {
 	return c.modelCfg
 }
 

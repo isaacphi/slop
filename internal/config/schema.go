@@ -1,7 +1,7 @@
 package config
 
 // LLM presets
-type Model struct {
+type ModelPreset struct {
 	Provider    string  `mapstructure:"provider"`
 	Name        string  `mapstructure:"name"`
 	MaxTokens   int     `mapstructure:"MaxTokens"`
@@ -49,13 +49,13 @@ type Log struct {
 }
 
 type ConfigSchema struct {
-	Models      map[string]Model     `mapstructure:"models"`
-	ActiveModel string               `mapstructure:"activeModel"`
-	DBPath      string               `mapstructure:"dbPath"`
-	Internal    Internal             `mapstructure:"internal"`
-	MCPServers  map[string]MCPServer `mapstructure:"mcpServers"`
-	Agent       Agent                `mapstructure:"agent"`
-	Log         Log                  `mapstructure:"log"`
+	ModelPresets map[string]ModelPreset `mapstructure:"ModelPresets"`
+	ActiveModel  string                 `mapstructure:"activeModel"`
+	DBPath       string                 `mapstructure:"dbPath"`
+	Internal     Internal               `mapstructure:"internal"`
+	MCPServers   map[string]MCPServer   `mapstructure:"mcpServers"`
+	Agent        Agent                  `mapstructure:"agent"`
+	Log          Log                    `mapstructure:"log"`
 
 	// Internal fields for printing
 	sources  map[string]string
