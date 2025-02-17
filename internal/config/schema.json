@@ -61,7 +61,7 @@
         "model": {
           "type": "string",
           "description": "Default model to use",
-          "default": "openai"
+          "default": "claude"
         },
         "summaryPrompt": {
           "type": "string",

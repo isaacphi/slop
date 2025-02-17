@@ -1,6 +1,10 @@
 //go:generate go run ../../cmd/tools/genschema/main.go
 package config
 
+// `mapstructure` tags are used by viper when unmarshalling yaml or json
+// `json` and `jsonschema` tags are used to generate schema.json and for default values
+// note that default values in default.slop.yaml take precedence
+
 // LLM presets
 type ModelPreset struct {
 	Provider    string             `mapstructure:"provider" json:"provider" jsonschema:"description=The AI provider to use"`
@@ -28,7 +32,7 @@ type Property struct {
 
 // Internal configuration settings
 type Internal struct {
-	Model         string `mapstructure:"model" json:"model" jsonschema:"description=Default model to use,default=openai"`
+	Model         string `mapstructure:"model" json:"model" jsonschema:"description=Default model to use,default=claude"`
 	SummaryPrompt string `mapstructure:"summaryPrompt" json:"summaryPrompt" jsonschema:"description=Prompt used for generating conversation summaries"`
 }
 

@@ -6,3 +6,6 @@ mcpServers:
     args:
       - "@modelcontextprotocol/server-filesystem"
       - "/Users/phil/dev/"
+modelPresets:
+  openai:
+    temperature: 1

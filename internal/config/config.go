@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -178,6 +180,11 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
+	// Set defaults from tags
+	if err := setStructuralDefaults(&schema); err != nil {
+		return nil, fmt.Errorf("error setting defaults: %w", err)
+	}
+
 	validate := validator.New()
 	if err := validate.Struct(schema); err != nil {
 		return nil, fmt.Errorf("config validation error: %w", err)
@@ -255,4 +262,107 @@ func (c *Config) flattenAndTrack(m map[string]interface{}, prefix string, source
 	}
 
 	return result
+}
+
+func setStructuralDefaults(schema *ConfigSchema) error {
+	return setDefaultsFromTags(reflect.ValueOf(schema).Elem())
+}
+
+func setDefaultsFromTags(v reflect.Value) error {
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	t := v.Type()
+	for i := 0; i < t.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanSet() {
+			continue
+		}
+
+		tag := t.Field(i).Tag.Get("jsonschema")
+		defaultVal := extractDefaultFromTag(tag)
+
+		switch field.Kind() {
+		case reflect.Struct:
+			if err := setDefaultsFromTags(field); err != nil {
+				return fmt.Errorf("field %s: %w", t.Field(i).Name, err)
+			}
+
+		case reflect.Map:
+			if field.IsNil() {
+				field.Set(reflect.MakeMap(field.Type()))
+			}
+			// If map values are structs, recursively set their defaults
+			if field.Type().Elem().Kind() == reflect.Struct {
+				// Create a new map to store updated values
+				iter := field.MapRange()
+				for iter.Next() {
+					key := iter.Key()
+					val := iter.Value()
+
+					// Create a new value so we can modify it
+					newVal := reflect.New(val.Type()).Elem()
+					newVal.Set(val)
+
+					// Recursively set defaults on the new value
+					err := setDefaultsFromTags(newVal)
+					if err != nil {
+						return err
+					}
+
+					// Store the modified value back in the map
+					field.SetMapIndex(key, newVal)
+				}
+			}
+
+		case reflect.String:
+			if field.String() == "" && defaultVal != "" {
+				field.SetString(defaultVal)
+			}
+
+		case reflect.Bool:
+			if defaultVal != "" {
+				switch defaultVal {
+				case "true":
+					field.SetBool(true)
+				case "false":
+					field.SetBool(false)
+				default:
+					return fmt.Errorf("field %s: invalid boolean default value: %s (must be 'true' or 'false')",
+						t.Field(i).Name, defaultVal)
+				}
+			}
+
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if field.Int() == 0 && defaultVal != "" {
+				val, err := strconv.ParseInt(defaultVal, 10, 64)
+				if err != nil {
+					return fmt.Errorf("field %s: invalid integer default value: %s (%w)",
+						t.Field(i).Name, defaultVal, err)
+				}
+				field.SetInt(val)
+			}
+
+		case reflect.Float32, reflect.Float64:
+			if field.Float() == 0 && defaultVal != "" {
+				val, err := strconv.ParseFloat(defaultVal, 64)
+				if err != nil {
+					return fmt.Errorf("field %s: invalid float default value: %s (%w)",
+						t.Field(i).Name, defaultVal, err)
+				}
+				field.SetFloat(val)
+			}
+		}
+	}
+	return nil
+}
+
+func extractDefaultFromTag(tag string) string {
+	for _, part := range strings.Split(tag, ",") {
+		if strings.HasPrefix(part, "default=") {
+			return strings.TrimPrefix(part, "default=")
+		}
+	}
+	return ""
 }
