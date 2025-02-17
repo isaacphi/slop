@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/isaacphi/slop/internal/config"
-	"io"
 	"os"
 	"path/filepath"
 )
@@ -51,33 +50,4 @@ func main() {
 		os.Exit(1)
 	}
 	fmt.Printf("Schema written to %s\n", outFile)
-
-	// Copy to .slop directory
-	slopDir := filepath.Join("..", "..", ".slop")
-	if err := os.MkdirAll(slopDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating .slop directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	destFile := filepath.Join(slopDir, filepath.Base(outFile))
-	source, err := os.Open(outFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error opening source file: %v\n", err)
-		os.Exit(1)
-	}
-	defer source.Close()
-
-	destination, err := os.Create(destFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error creating destination file: %v\n", err)
-		os.Exit(1)
-	}
-	defer destination.Close()
-
-	if _, err := io.Copy(destination, source); err != nil {
-		fmt.Fprintf(os.Stderr, "Error copying file to .slop directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Printf("Schema copied to %s\n", destFile)
 }

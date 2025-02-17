@@ -1,4 +1,5 @@
-# yaml-language-server: $schema=schema.json
+# yaml-language-server: $schema=../internal/config/schema.json
+# Using local schema for development
 
 mcpServers:
   filesystem:

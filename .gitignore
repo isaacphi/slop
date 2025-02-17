@@ -1,7 +1,6 @@
 # This project's slop configuration
 .slop/slop.db
 .slop/log
-.slop/schema.json
 
 # Binary
 slop
