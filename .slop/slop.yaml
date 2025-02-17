@@ -8,5 +8,15 @@ mcpServers:
       - "@modelcontextprotocol/server-filesystem"
       - "/Users/phil/dev/"
 modelPresets:
-  openai:
+  claude:
     temperature: 1
+    toolsets:
+      - mytools
+toolsets:
+  mytools:
+    filesystem:
+      requireApproval: false
+      allowedTools:
+        read_file: {}
+        write_file:
+          requireApproval: true

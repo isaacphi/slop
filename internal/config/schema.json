@@ -51,6 +51,16 @@
         "log": {
           "$ref": "#/$defs/Log",
           "description": "Logging configuration"
+        },
+        "toolsets": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "$ref": "#/$defs/MCPServerToolConfig"
+            },
+            "type": "object"
+          },
+          "type": "object",
+          "description": "Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."
         }
       },
       "additionalProperties": false,
@@ -60,7 +70,7 @@
       "properties": {
         "model": {
           "type": "string",
-          "description": "Default model to use",
+          "description": "Default model to use for internal llm calls such as summaries",
           "default": "claude"
         },
         "summaryPrompt": {
@@ -117,6 +127,24 @@
       "additionalProperties": false,
       "type": "object"
     },
+    "MCPServerToolConfig": {
+      "properties": {
+        "requireApproval": {
+          "type": "boolean",
+          "description": "Whether tools need explicit approval",
+          "default": true
+        },
+        "allowedTools": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ToolConfig"
+          },
+          "type": "object",
+          "description": "Configuration for allowed tools. Leave empty to allow all tools."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
     "ModelPreset": {
       "properties": {
         "provider": {
@@ -138,11 +166,11 @@
           "default": 0.7
         },
         "toolsets": {
-          "additionalProperties": {
-            "$ref": "#/$defs/Toolset"
+          "items": {
+            "type": "string"
           },
-          "type": "object",
-          "description": "Tool configurations for this model preset"
+          "type": "array",
+          "description": "Toolsets to use for this model preset"
         }
       },
       "additionalProperties": false,
@@ -151,41 +179,16 @@
     "ToolConfig": {
       "properties": {
         "requireApproval": {
-          "type": "string",
-          "enum": [
-            "true",
-            "false"
-          ],
-          "description": "Override global approval requirement for this tool"
+          "type": "boolean",
+          "description": "Whether tools need explicit approval",
+          "default": true
         },
         "presetParameters": {
           "additionalProperties": {
             "type": "string"
           },
           "type": "object",
-          "description": "Pre-configured parameters for this tool"
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
-    "Toolset": {
-      "properties": {
-        "requireApproval": {
-          "type": "string",
-          "enum": [
-            "true",
-            "false"
-          ],
-          "description": "Whether tools need explicit approval",
-          "default": "false"
-        },
-        "allowedTools": {
-          "additionalProperties": {
-            "$ref": "#/$defs/ToolConfig"
-          },
-          "type": "object",
-          "description": "Configuration for allowed tools"
+          "description": "Pre-configured parameters for this tool. Uses partial function application to send fewer parameters to the LLM."
         }
       },
       "additionalProperties": false,

@@ -191,6 +191,8 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	}
 
 	// Additional custom validations
+	// TODO: rename to defaultModel
+	// TODO: also validate internal model
 	if schema.ActiveModel != "" {
 		found := false
 		for key := range schema.ModelPresets {
@@ -204,10 +206,11 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 			for key := range schema.ModelPresets {
 				availableModels = append(availableModels, key)
 			}
-			return nil, fmt.Errorf("mainModel %q must be one of configured models: %v",
+			return nil, fmt.Errorf("activeModel %q must be one of configured models: %v",
 				schema.ActiveModel, availableModels)
 		}
 	}
+	// TODO: validate toolsets
 
 	return &schema, nil
 }
