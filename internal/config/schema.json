@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/isaacphi/slop/internal/config/config-schema",
+  "$ref": "#/$defs/ConfigSchema",
+  "$defs": {
+    "Agent": {
+      "properties": {
+        "autoApproveFunctions": {
+          "type": "boolean",
+          "description": "Automatically approve function calls",
+          "default": true
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ConfigSchema": {
+      "properties": {
+        "modelPresets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ModelPreset"
+          },
+          "type": "object",
+          "description": "Available model configurations"
+        },
+        "activeModel": {
+          "type": "string",
+          "description": "Currently selected model preset",
+          "default": "claude"
+        },
+        "dbPath": {
+          "type": "string",
+          "description": "Path to the database file",
+          "default": ".slop/slop.db"
+        },
+        "internal": {
+          "$ref": "#/$defs/Internal",
+          "description": "Internal configuration settings"
+        },
+        "mcpServers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MCPServer"
+          },
+          "type": "object",
+          "description": "MCP server configurations"
+        },
+        "agent": {
+          "$ref": "#/$defs/Agent",
+          "description": "Agent behavior settings"
+        },
+        "log": {
+          "$ref": "#/$defs/Log",
+          "description": "Logging configuration"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Internal": {
+      "properties": {
+        "model": {
+          "type": "string",
+          "description": "Default model to use",
+          "default": "openai"
+        },
+        "summaryPrompt": {
+          "type": "string",
+          "description": "Prompt used for generating conversation summaries"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Log": {
+      "properties": {
+        "logLevel": {
+          "type": "string",
+          "enum": [
+            "DEBUG",
+            "INFO",
+            "WARN",
+            "ERROR"
+          ],
+          "description": "Log level (DEBUG",
+          "default": "INFO"
+        },
+        "logFile": {
+          "type": "string",
+          "description": "Log file path",
+          "default": ""
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "MCPServer": {
+      "properties": {
+        "command": {
+          "type": "string",
+          "description": "Command to run the MCP server"
+        },
+        "args": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Command line arguments for the MCP server"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Environment variables for the MCP server"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ModelPreset": {
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The AI provider to use"
+        },
+        "name": {
+          "type": "string",
+          "description": "Model name for the provider"
+        },
+        "maxTokens": {
+          "type": "integer",
+          "description": "Maximum tokens to use in requests",
+          "default": 1000
+        },
+        "temperature": {
+          "type": "number",
+          "description": "Temperature setting for the model",
+          "default": 0.7
+        },
+        "toolsets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Toolset"
+          },
+          "type": "object",
+          "description": "Tool configurations for this model preset"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "ToolConfig": {
+      "properties": {
+        "requireApproval": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ],
+          "description": "Override global approval requirement for this tool"
+        },
+        "presetParameters": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "type": "object",
+          "description": "Pre-configured parameters for this tool"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Toolset": {
+      "properties": {
+        "requireApproval": {
+          "type": "string",
+          "enum": [
+            "true",
+            "false"
+          ],
+          "description": "Whether tools need explicit approval",
+          "default": "false"
+        },
+        "allowedTools": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ToolConfig"
+          },
+          "type": "object",
+          "description": "Configuration for allowed tools"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    }
+  },
+  "title": "Slop Configuration Schema",
+  "description": "Configuration schema for the Slop CLI tool"
+}

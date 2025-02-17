@@ -1,11 +1,8 @@
-{
-  "mcpServers":
-    {
-      "filesystem":
-        {
-          "command": "npx",
-          "args":
-            ["@modelcontextprotocol/server-filesystem", "/Users/phil/dev/"],
-        },
-    },
-}
+# yaml-language-server: $schema=schema.json
+
+mcpServers:
+  filesystem:
+    command: npx
+    args:
+      - "@modelcontextprotocol/server-filesystem"
+      - "/Users/phil/dev/"
