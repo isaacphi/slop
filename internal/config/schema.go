@@ -2,10 +2,11 @@ package config
 
 // LLM presets
 type ModelPreset struct {
-	Provider    string  `mapstructure:"provider"`
-	Name        string  `mapstructure:"name"`
-	MaxTokens   int     `mapstructure:"MaxTokens"`
-	Temperature float64 `mapstructure:"temperature"`
+	Provider    string             `mapstructure:"provider"`
+	Name        string             `mapstructure:"name"`
+	MaxTokens   int                `mapstructure:"MaxTokens"`
+	Temperature float64            `mapstructure:"temperature"`
+	Toolsets    map[string]Toolset `mapstructure:"toolsets"`
 }
 
 type Parameters struct {
@@ -35,6 +36,16 @@ type MCPServer struct {
 	Command string            `mapstructure:"command"`
 	Args    []string          `mapstructure:"args"`
 	Env     map[string]string `mapstructure:"env"`
+}
+
+type Toolset struct {
+	RequireApproval string                `mapstructure:"requireApproval"`
+	AllowedTools    map[string]ToolConfig `mapstructure:"allowedTools"`
+}
+
+type ToolConfig struct {
+	RequireApproval  string            `mapstructure:"requireApproval"`
+	PresetParameters map[string]string `mapstructure:"presetParameters"`
 }
 
 // "Agent"
