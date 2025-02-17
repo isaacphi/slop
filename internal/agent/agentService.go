@@ -41,7 +41,7 @@ func (e *PendingFunctionCallError) Error() string {
 }
 
 // validateArguments checks if the provided arguments match the tool's schema
-func validateArguments(args json.RawMessage, tool config.Tool) error {
+func validateArguments(args json.RawMessage, tool mcp.Tool) error {
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal(args, &parsedArgs); err != nil {
 		return fmt.Errorf("invalid argument format: %w", err)
@@ -102,7 +102,7 @@ func validateArguments(args json.RawMessage, tool config.Tool) error {
 }
 
 // executeFunction executes a function call and returns its result
-func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tools map[string]config.Tool) (string, error) {
+func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tools map[string]mcp.Tool) (string, error) {
 	tool, exists := tools[toolCall.Name]
 	if !exists {
 		return "", fmt.Errorf("function %s not found", toolCall.Name)
@@ -217,7 +217,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		}
 	}
 
-	fmt.Printf("\n%s\n", combinedResults.String())
+	// fmt.Printf("\n%s\n", combinedResults.String()[:150]+"...")
 
 	// Send combined results as followup message
 	followupOpts := message.SendMessageOptions{

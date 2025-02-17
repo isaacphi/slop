@@ -10,6 +10,7 @@ import (
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
 	"github.com/isaacphi/slop/internal/llm"
+	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/repository"
 )
 
@@ -36,7 +37,7 @@ type SendMessageOptions struct {
 	ParentID      *uuid.UUID // Optional: message to reply to. If nil, starts a new conversation
 	Content       string
 	StreamHandler StreamHandler
-	Tools         map[string]config.Tool
+	Tools         map[string]mcp.Tool
 }
 
 func (s *MessageService) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {

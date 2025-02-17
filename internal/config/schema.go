@@ -2,17 +2,10 @@ package config
 
 // LLM presets
 type Model struct {
-	Provider    string          `mapstructure:"provider"`
-	Name        string          `mapstructure:"name"`
-	MaxTokens   int             `mapstructure:"MaxTokens"`
-	Temperature float64         `mapstructure:"temperature"`
-	Tools       map[string]Tool `mapstructure:"tools"`
-}
-
-type Tool struct {
-	Name        string     `mapstructure:"name"`
-	Description string     `mapstructure:"description"`
-	Parameters  Parameters `mapstructure:"parameters"`
+	Provider    string  `mapstructure:"provider"`
+	Name        string  `mapstructure:"name"`
+	MaxTokens   int     `mapstructure:"MaxTokens"`
+	Temperature float64 `mapstructure:"temperature"`
 }
 
 type Parameters struct {

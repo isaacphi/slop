@@ -8,6 +8,7 @@ import (
 
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/googleai"
@@ -80,7 +81,7 @@ func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
 	return history
 }
 
-func getTools(tools map[string]config.Tool) []llms.Tool {
+func getTools(tools map[string]mcp.Tool) []llms.Tool {
 	var result []llms.Tool
 	for name, tool := range tools {
 		paramsMap := convertParameters(tool.Parameters)
@@ -154,7 +155,7 @@ func (c *Client) GetConfig() config.Model {
 	return c.modelCfg
 }
 
-func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]config.Tool) (MessageResponse, error) {
+func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]mcp.Tool) (MessageResponse, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		// TODO: callback should include context and have same signature to remove wrappedCallback
 		return callback(chunk)

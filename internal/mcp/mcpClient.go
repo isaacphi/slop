@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -18,9 +19,18 @@ type Client struct {
 	servers     map[string]config.MCPServer
 	clients     map[string]*mcp_golang.Client
 	commands    map[string]*exec.Cmd
-	tools       map[string]config.Tool
+	tools       map[string]Tool
 	mu          sync.RWMutex
 	initialized bool
+}
+
+type Tool struct {
+	Name        string
+	FullName    string
+	ServerName  string
+	MCPClient   *mcp_golang.Client
+	Description string
+	Parameters  config.Parameters
 }
 
 // New creates a new MCP client manager
@@ -29,7 +39,7 @@ func New(servers map[string]config.MCPServer) *Client {
 		servers:  servers,
 		clients:  make(map[string]*mcp_golang.Client),
 		commands: make(map[string]*exec.Cmd),
-		tools:    make(map[string]config.Tool),
+		tools:    make(map[string]Tool),
 	}
 }
 
@@ -77,6 +87,11 @@ func (c *Client) Initialize(ctx context.Context) error {
 
 // startServer starts a single server and establishes its client connection
 func (c *Client) startServer(ctx context.Context, name string, server config.MCPServer) error {
+	parts := strings.Split(name, "__")
+	if len(parts) != 1 {
+		return fmt.Errorf("invalid server name format, can't contain '__', got '%s'", name)
+	}
+
 	cmd := exec.Command(server.Command, server.Args...)
 
 	if server.Env != nil {
@@ -103,7 +118,11 @@ func (c *Client) startServer(ctx context.Context, name string, server config.MCP
 	client := mcp_golang.NewClient(transport)
 
 	// Initialize with client name and version
-	if _, err := client.Initialize(ctx, fmt.Sprintf("slop-%s", name), "1.0.0"); err != nil {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return fmt.Errorf("No build info available")
+	}
+	if _, err := client.Initialize(ctx, "slop", info.Main.Version); err != nil {
 		_ = cmd.Process.Kill()
 		return errors.Wrap(err, "failed to initialize client")
 	}
@@ -121,7 +140,7 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.tools = make(map[string]config.Tool)
+	c.tools = make(map[string]Tool)
 
 	for serverName, client := range c.clients {
 		response, err := client.ListTools(ctx, nil)
@@ -130,7 +149,7 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 		}
 
 		for _, mcpTool := range response.Tools {
-			toolName := fmt.Sprintf("%s__%s", serverName, mcpTool.Name)
+			fullToolName := fmt.Sprintf("%s__%s", serverName, mcpTool.Name)
 
 			description := ""
 			if mcpTool.Description != nil {
@@ -143,8 +162,11 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 				params = parseSchema(schema)
 			}
 
-			c.tools[toolName] = config.Tool{
-				Name:        toolName,
+			c.tools[fullToolName] = Tool{
+				Name:        mcpTool.Name,
+				FullName:    fullToolName,
+				ServerName:  serverName,
+				MCPClient:   client,
 				Description: description,
 				Parameters:  params,
 			}
@@ -237,9 +259,9 @@ func parseProperty(propMap map[string]interface{}) config.Property {
 	return property
 }
 
-// CallTool calls a tool using its fully qualified name (serverName.toolName)
+// CallTool calls a tool using its fully qualified name (serverName__toolName)
 func (c *Client) CallTool(ctx context.Context, name string, arguments interface{}) (*mcp_golang.ToolResponse, error) {
-	parts := strings.SplitN(name, "__", 2)
+	parts := strings.Split(name, "__")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("invalid tool name format, expected 'server__tool', got '%s'", name)
 	}
@@ -258,12 +280,12 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments interface{
 }
 
 // GetTools returns a map of all available tools
-func (c *Client) GetTools() map[string]config.Tool {
+func (c *Client) GetTools() map[string]Tool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	// Create a copy of the tools map to prevent external modification
-	tools := make(map[string]config.Tool, len(c.tools))
+	tools := make(map[string]Tool, len(c.tools))
 	for k, v := range c.tools {
 		tools[k] = v
 	}
@@ -300,6 +322,6 @@ func (c *Client) Shutdown() {
 
 	c.commands = make(map[string]*exec.Cmd)
 	c.clients = make(map[string]*mcp_golang.Client)
-	c.tools = make(map[string]config.Tool)
+	c.tools = make(map[string]Tool)
 	c.initialized = false
 }
