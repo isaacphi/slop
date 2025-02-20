@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// TODO: Remove edit commmand and have this functionality available through send.
+
 var editCmd = &cobra.Command{
 	Use:   "edit [threadID] [messageID] [message]",
 	Short: "Create an alternative response to a message",

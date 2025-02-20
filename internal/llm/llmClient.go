@@ -16,7 +16,7 @@ import (
 )
 
 // The LLM Client handles calls to llms
-// it is currently a wrapper around langchaingo
+// it is a wrapper around langchaingo
 type Client struct {
 	llm      llms.Model
 	modelCfg config.ModelPreset
@@ -99,7 +99,7 @@ func getTools(tools map[string]mcp.Tool) []llms.Tool {
 	return result
 }
 
-func convertParameters(params config.Parameters) map[string]any {
+func convertParameters(params mcp.Parameters) map[string]any {
 	properties := make(map[string]any)
 
 	for pName, prop := range params.Properties {
@@ -113,7 +113,7 @@ func convertParameters(params config.Parameters) map[string]any {
 	}
 }
 
-func convertProperty(prop config.Property) map[string]any {
+func convertProperty(prop mcp.Property) map[string]any {
 	result := map[string]any{
 		"type":        prop.Type,
 		"description": prop.Description,
@@ -155,6 +155,7 @@ func (c *Client) GetConfig() config.ModelPreset {
 	return c.modelCfg
 }
 
+// TODO: Make this functional: do not make it a method on the client. It should be called with model preset options
 func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]mcp.Tool) (MessageResponse, error) {
 	wrappedCallback := func(ctx context.Context, chunk []byte) error {
 		// TODO: callback should include context and have same signature to remove wrappedCallback

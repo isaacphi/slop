@@ -12,6 +12,8 @@ import (
 
 // InitializeMessageService creates and initializes the message service with all required dependencies
 func InitializeMessageService(cfg *config.ConfigSchema, overrides *MessageServiceOverrides) (*MessageService, error) {
+	// TODO: The "agent" should be in charge of initializing the message service
+
 	// Initialize the database connection
 	db, err := gorm.Open(sqlite.Open(cfg.DBPath), &gorm.Config{})
 	if err != nil {

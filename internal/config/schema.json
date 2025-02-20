@@ -54,10 +54,7 @@
         },
         "toolsets": {
           "additionalProperties": {
-            "additionalProperties": {
-              "$ref": "#/$defs/MCPServerToolConfig"
-            },
-            "type": "object"
+            "$ref": "#/$defs/Toolset"
           },
           "type": "object",
           "description": "Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."
@@ -192,6 +189,12 @@
         }
       },
       "additionalProperties": false,
+      "type": "object"
+    },
+    "Toolset": {
+      "additionalProperties": {
+        "$ref": "#/$defs/MCPServerToolConfig"
+      },
       "type": "object"
     }
   },

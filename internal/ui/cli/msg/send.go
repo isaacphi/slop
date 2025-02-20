@@ -51,7 +51,7 @@ var sendCmd = &cobra.Command{
 		cfg := app.Get().Config
 
 		// Initialize services
-		service, err := message.InitializeMessageService(cfg, overrides)
+		messageService, err := message.InitializeMessageService(cfg, overrides)
 		if err != nil {
 			return err
 		}
@@ -60,7 +60,7 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		defer mcpClient.Shutdown()
-		agentService := agent.New(service, mcpClient, cfg.Agent)
+		agentService := agent.New(messageService, mcpClient, cfg.Agent)
 
 		// Get the initialMessage content
 		var initialMessage string
@@ -88,20 +88,20 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("cannot specify --target and --continue")
 		}
 		if threadFlag != "" {
-			thread, err := service.FindThreadByPartialID(ctx, threadFlag)
+			thread, err := messageService.FindThreadByPartialID(ctx, threadFlag)
 			if err != nil {
 				return err
 			}
 			threadID = thread.ID
 		} else if continueFlag {
-			thread, err := service.GetActiveThread(ctx)
+			thread, err := messageService.GetActiveThread(ctx)
 			if err != nil {
 				return err
 			}
 			threadID = thread.ID
 		} else {
 			// Create new thread
-			thread, err := service.NewThread(ctx)
+			thread, err := messageService.NewThread(ctx)
 			if err != nil {
 				return fmt.Errorf("failed to create thread: %w", err)
 			}
@@ -119,6 +119,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Handle followup mode
+		// TODO: remove followup mode
 		if followupFlag {
 			reader := bufio.NewReader(os.Stdin)
 			for {
