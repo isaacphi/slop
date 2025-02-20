@@ -10,5 +10,5 @@ var MsgCmd = &cobra.Command{
 }
 
 func init() {
-	MsgCmd.AddCommand(sendCmd, deleteCmd, editCmd)
+	MsgCmd.AddCommand(sendCmd, deleteCmd)
 }

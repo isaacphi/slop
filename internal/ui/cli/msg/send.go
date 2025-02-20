@@ -23,6 +23,7 @@ var (
 	followupFlag    bool
 	modelFlag       string
 	threadFlag      string
+	parentFlag      string
 	noStreamFlag    bool
 	maxTokensFlag   int
 	temperatureFlag float64
@@ -82,34 +83,60 @@ var sendCmd = &cobra.Command{
 			return fmt.Errorf("no message provided")
 		}
 
-		// Get thread ID
+		// Get thread ID and parent message if specified
 		var threadID uuid.UUID
+		var parentID *uuid.UUID
+
 		if continueFlag && threadFlag != "" {
-			return fmt.Errorf("cannot specify --target and --continue")
+			return fmt.Errorf("cannot specify --thread and --continue")
 		}
-		if threadFlag != "" {
+
+		// Handle parent flag case
+		if parentFlag != "" {
+			if threadFlag == "" {
+				return fmt.Errorf("--parent requires --thread to be specified")
+			}
+			// Find thread
 			thread, err := messageService.FindThreadByPartialID(ctx, threadFlag)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to find thread: %w", err)
 			}
 			threadID = thread.ID
-		} else if continueFlag {
-			thread, err := messageService.GetActiveThread(ctx)
+
+			// Find parent message
+			parentMsg, err := messageService.FindMessageByPartialID(ctx, threadID, parentFlag)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to find parent message: %w", err)
 			}
-			threadID = thread.ID
+			// Use the parent's parent as our parent (same as edit command)
+			parentID = &parentMsg.ID
 		} else {
-			// Create new thread
-			thread, err := messageService.NewThread(ctx)
-			if err != nil {
-				return fmt.Errorf("failed to create thread: %w", err)
+			// Regular send command flow
+			if threadFlag != "" {
+				thread, err := messageService.FindThreadByPartialID(ctx, threadFlag)
+				if err != nil {
+					return err
+				}
+				threadID = thread.ID
+			} else if continueFlag {
+				thread, err := messageService.GetActiveThread(ctx)
+				if err != nil {
+					return err
+				}
+				threadID = thread.ID
+			} else {
+				// Create new thread
+				thread, err := messageService.NewThread(ctx)
+				if err != nil {
+					return fmt.Errorf("failed to create thread: %w", err)
+				}
+				threadID = thread.ID
 			}
-			threadID = thread.ID
 		}
 
 		sendOptions := message.SendMessageOptions{
 			ThreadID: threadID,
+			ParentID: parentID,
 			Content:  initialMessage,
 		}
 
@@ -303,6 +330,7 @@ func (h *CLIStreamHandler) formatJSON(data string) string {
 
 func init() {
 	sendCmd.Flags().StringVarP(&threadFlag, "thread", "t", "", "Continue target thread")
+	sendCmd.Flags().StringVarP(&parentFlag, "parent", "p", "", "Create alternative response by using specified message's parent")
 	sendCmd.Flags().BoolVarP(&continueFlag, "continue", "c", false, "Continue the most recent thread")
 	sendCmd.Flags().BoolVarP(&followupFlag, "followup", "f", false, "Enable followup mode")
 	sendCmd.Flags().StringVarP(&modelFlag, "model", "m", "", "Specify the model to use")
