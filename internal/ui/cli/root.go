@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/isaacphi/slop/internal/app"
+	"github.com/isaacphi/slop/internal/appState"
 	"github.com/isaacphi/slop/internal/config"
 	configCmd "github.com/isaacphi/slop/internal/ui/cli/config"
 	"github.com/isaacphi/slop/internal/ui/cli/mcp"
@@ -46,11 +46,11 @@ func init() {
 		if logFile != "" {
 			overrides.LogFile = &logFile
 		}
-		return app.Initialize(overrides)
+		return appState.Initialize(overrides)
 	}
 
 	rootCmd.PersistentPostRunE = func(cmd *cobra.Command, args []string) error {
-		return app.Cleanup()
+		return appState.Cleanup()
 	}
 
 	// Remove "completions" command

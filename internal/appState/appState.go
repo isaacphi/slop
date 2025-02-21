@@ -1,5 +1,5 @@
 // /Users/phil/dev/slop/internal/app/app.go
-package app
+package appState
 
 import (
 	"fmt"

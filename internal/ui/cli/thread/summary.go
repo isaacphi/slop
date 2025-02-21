@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/isaacphi/slop/internal/app"
+	"github.com/isaacphi/slop/internal/appState"
 	"github.com/isaacphi/slop/internal/internalService"
-	"github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/repository/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -16,14 +16,14 @@ var summaryCmd = &cobra.Command{
 	Long:  "Write a summary for a thread. Leave [summary] blank to auto generate a slop summary",
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := app.Get().Config
-		messageService, err := message.InitializeMessageService(cfg, nil)
+		cfg := appState.Get().Config
+		repo, err := sqlite.Initialize(cfg.DBPath)
 		if err != nil {
 			return err
 		}
 
 		// Find thread by partial ID
-		thread, err := messageService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := repo.GetThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
@@ -34,7 +34,7 @@ var summaryCmd = &cobra.Command{
 			summary = strings.Join(args[1:], " ")
 		} else {
 			// No user supplied summary. Use slop.
-			messages, err := messageService.GetThreadMessages(cmd.Context(), thread.ID, nil)
+			messages, err := repo.GetMessages(cmd.Context(), thread.ID, nil, false)
 			if err != nil {
 				return fmt.Errorf("failed to get thread messages: %w", err)
 			}
@@ -47,7 +47,7 @@ var summaryCmd = &cobra.Command{
 				return fmt.Errorf("failed to generate summary: %w", err)
 			}
 		}
-		err = messageService.SetThreadSummary(cmd.Context(), thread, summary)
+		err = repo.SetThreadSummary(cmd.Context(), thread.ID, summary)
 		if err != nil {
 			return fmt.Errorf("failed to set thread summary: %w", err)
 		}

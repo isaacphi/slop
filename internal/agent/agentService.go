@@ -11,22 +11,33 @@ import (
 	"github.com/isaacphi/slop/internal/domain"
 	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/mcp"
-	"github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/repository"
 )
 
-// "Agent" manages the interaction between the message service and function calls
+// "Agent" manages the interaction between the repository, llm, and function calls
 type Agent struct {
-	messageService *message.MessageService
-	mcp            *mcp.Client
-	cfg            config.Agent
+	repository  repository.MessageRepository
+	mcpClient   *mcp.Client
+	modelConfig config.ModelPreset
+	tools       map[string]mcp.Tool
+	cfg         config.Agent
 }
 
-// New creates a new "Agent" with the given message service and configuration
-func New(messageService *message.MessageService, mcpClient *mcp.Client, cfg config.Agent) *Agent {
+type SendMessageOptions struct {
+	ThreadID      uuid.UUID
+	ParentID      *uuid.UUID
+	Content       string
+	StreamHandler llm.StreamHandler
+}
+
+// New creates a new Agent with the given dependencies
+func New(repo repository.MessageRepository, mcpClient *mcp.Client, modelCfg config.ModelPreset, cfg config.Agent) *Agent {
 	return &Agent{
-		messageService: messageService,
-		mcp:            mcpClient,
-		cfg:            cfg,
+		repository:  repo,
+		mcpClient:   mcpClient,
+		modelConfig: modelCfg,
+		tools:       mcpClient.GetTools(),
+		cfg:         cfg,
 	}
 }
 
@@ -119,7 +130,7 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 	}
 
 	// Execute the function through MCP client
-	result, err := a.mcp.CallTool(ctx, toolCall.Name, args)
+	result, err := a.mcpClient.CallTool(ctx, toolCall.Name, args)
 	if err != nil {
 		return "", fmt.Errorf("function execution failed: %w", err)
 	}
@@ -133,32 +144,85 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 	return string(resultBytes), nil
 }
 
-// SendMessage sends a message through the "Agent", handling any function calls
-func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions) (*domain.Message, error) {
-	opts.Tools = a.mcp.GetTools()
-
-	// Start with normal message flow
-	responseMsg, err := a.messageService.SendMessage(ctx, opts)
+// SendMessage sends a message through the Agent, handling any function calls
+func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
+	// Verify thread exists
+	thread, err := a.repository.GetThreadByID(ctx, opts.ThreadID)
 	if err != nil {
-		return nil, fmt.Errorf("message service error: %w", err)
+		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
-	_ = opts.StreamHandler.HandleMessageDone()
+	// If no parent specified, get the most recent message in thread
+	if opts.ParentID == nil {
+		messages, err := a.repository.GetMessages(ctx, thread.ID, nil, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get messages: %w", err)
+		}
+		if len(messages) > 0 {
+			lastMsg := messages[len(messages)-1]
+			opts.ParentID = &lastMsg.ID
+		}
+	}
 
-	// Reset stream handler
+	// Get conversation history for context
+	messages, err := a.repository.GetMessages(ctx, thread.ID, opts.ParentID, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation history: %w", err)
+	}
+
+	// Create user message
+	userMsg := &domain.Message{
+		ThreadID: opts.ThreadID,
+		ParentID: opts.ParentID,
+		Role:     domain.RoleHuman,
+		Content:  opts.Content,
+	}
+
+	if err := a.repository.AddMessageToThread(ctx, opts.ThreadID, userMsg); err != nil {
+		return nil, err
+	}
+
+	// Get AI response
+	aiResponse, err := llm.GenerateContent(
+		ctx,
+		a.modelConfig,
+		opts.Content,
+		messages,
+		a.tools,
+		opts.StreamHandler,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate AI response: %w", err)
+	}
+
 	if opts.StreamHandler != nil {
+		_ = opts.StreamHandler.HandleMessageDone()
 		opts.StreamHandler.Reset()
 	}
 
-	var toolCalls []llm.ToolCall
-	err = json.Unmarshal([]byte(responseMsg.ToolCalls), &toolCalls)
+	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
 	if err != nil {
-		return nil, fmt.Errorf("error unmarshalling tool calls: %w", err)
+		return nil, fmt.Errorf("Failed to parse ToolCalls: %w", err)
+	}
+
+	// Create AI message as a reply to the user message
+	aiMsg := &domain.Message{
+		ThreadID:  opts.ThreadID,
+		ParentID:  &userMsg.ID,
+		Role:      domain.RoleAssistant,
+		Content:   aiResponse.TextResponse,
+		ToolCalls: string(toolCallsString),
+		ModelName: a.modelConfig.Name,
+		Provider:  a.modelConfig.Provider,
+	}
+
+	if err := a.repository.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {
+		return nil, err
 	}
 
 	// Check for function calls in response
-	if len(toolCalls) == 0 {
-		return responseMsg, nil
+	if len(aiResponse.ToolCalls) == 0 {
+		return aiMsg, nil
 	}
 
 	// Create channels for collecting results
@@ -167,13 +231,13 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		result string
 		err    error
 	}
-	resultChan := make(chan toolResult, len(toolCalls))
+	resultChan := make(chan toolResult, len(aiResponse.ToolCalls))
 
 	// Launch concurrent execution of all tool calls
-	for _, call := range toolCalls {
+	for _, call := range aiResponse.ToolCalls {
 		go func(tc llm.ToolCall) {
 			if a.cfg.AutoApproveFunctions {
-				result, err := a.executeFunction(ctx, tc, opts.Tools)
+				result, err := a.executeFunction(ctx, tc, a.tools)
 				resultChan <- toolResult{
 					call:   tc,
 					result: result,
@@ -187,7 +251,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 	var combinedResults strings.Builder
 	combinedResults.WriteString("Tool call results:\n\n")
 
-	for i := 0; i < len(toolCalls); i++ {
+	for i := 0; i < len(aiResponse.ToolCalls); i++ {
 		res := <-resultChan
 
 		// Format the tool call header
@@ -204,25 +268,23 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 		}
 
 		// Add separator between results unless it's the last one
-		if i < len(toolCalls)-1 {
+		if i < len(aiResponse.ToolCalls)-1 {
 			combinedResults.WriteString("\n")
 		}
 	}
 
 	// If auto-approve is disabled, return for manual approval with first tool call
 	if !a.cfg.AutoApproveFunctions {
-		return responseMsg, &PendingFunctionCallError{
-			Message:  responseMsg,
-			ToolCall: toolCalls[0],
+		return aiMsg, &PendingFunctionCallError{
+			Message:  aiMsg,
+			ToolCall: aiResponse.ToolCalls[0],
 		}
 	}
 
-	// fmt.Printf("\n%s\n", combinedResults.String()[:150]+"...")
-
 	// Send combined results as followup message
-	followupOpts := message.SendMessageOptions{
+	followupOpts := SendMessageOptions{
 		ThreadID:      opts.ThreadID,
-		ParentID:      &responseMsg.ID,
+		ParentID:      &aiMsg.ID,
 		Content:       combinedResults.String(),
 		StreamHandler: opts.StreamHandler,
 	}
@@ -233,7 +295,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts message.SendMessageOptions
 // DenyFunctionCall handles a denied function call
 func (a *Agent) DenyFunctionCall(ctx context.Context, threadID uuid.UUID, messageID uuid.UUID, reason string) (*domain.Message, error) {
 	content := fmt.Sprintf("Function call denied: %s\nPlease suggest an alternative approach.", reason)
-	return a.messageService.SendMessage(ctx, message.SendMessageOptions{
+	return a.SendMessage(ctx, SendMessageOptions{
 		ThreadID: threadID,
 		ParentID: &messageID,
 		Content:  content,

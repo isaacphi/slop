@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/isaacphi/slop/internal/app"
+	"github.com/isaacphi/slop/internal/appState"
 	"github.com/isaacphi/slop/internal/domain"
-	"github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/repository/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -15,18 +15,18 @@ var viewCmd = &cobra.Command{
 	Short: "View messages in a thread",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := app.Get().Config
-		messageService, err := message.InitializeMessageService(cfg, nil)
+		cfg := appState.Get().Config
+		repo, err := sqlite.Initialize(cfg.DBPath)
 		if err != nil {
 			return err
 		}
 
-		thread, err := messageService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := repo.GetThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
-		messages, err := messageService.GetThreadMessages(cmd.Context(), thread.ID, nil)
+		messages, err := repo.GetMessages(cmd.Context(), thread.ID, nil, false)
 		if err != nil {
 			return fmt.Errorf("failed to get thread messages: %w", err)
 		}

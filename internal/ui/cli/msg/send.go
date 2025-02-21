@@ -12,9 +12,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/agent"
-	"github.com/isaacphi/slop/internal/app"
+	"github.com/isaacphi/slop/internal/appState"
+	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/mcp"
-	"github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/repository/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -34,34 +36,42 @@ var sendCmd = &cobra.Command{
 	Short: "Send messages to an LLM",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Create cancellable context
-		// TODO: do I need this, or should I just use cmd context?
 		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		// Initialize services
-		overrides := &message.MessageServiceOverrides{}
-		if modelFlag != "" {
-			overrides.ActiveModel = &modelFlag
-		}
-		if maxTokensFlag > 0 {
-			overrides.MaxTokens = &maxTokensFlag
-		}
-		if temperatureFlag > 0 {
-			overrides.Temperature = &temperatureFlag
-		}
-		cfg := app.Get().Config
+		cfg := appState.Get().Config
 
-		// Initialize services
-		messageService, err := message.InitializeMessageService(cfg, overrides)
+		// Initialize repository
+		repo, err := sqlite.Initialize(cfg.DBPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to initialize repository: %w", err)
 		}
+
+		// Initialize MCP client
 		mcpClient := mcp.New(cfg.MCPServers)
 		if err := mcpClient.Initialize(context.Background()); err != nil {
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		defer mcpClient.Shutdown()
-		agentService := agent.New(messageService, mcpClient, cfg.Agent)
+
+		// Get model configuration
+		modelCfg := cfg.ModelPresets[cfg.ActiveModel]
+		if modelFlag != "" {
+			var ok bool
+			modelCfg, ok = cfg.ModelPresets[modelFlag]
+			if !ok {
+				return fmt.Errorf("model %s not found in configuration", modelFlag)
+			}
+		}
+		if maxTokensFlag > 0 {
+			modelCfg.MaxTokens = maxTokensFlag
+		}
+		if temperatureFlag > 0 {
+			modelCfg.Temperature = temperatureFlag
+		}
+
+		// Initialize Agent
+		agentService := agent.New(repo, mcpClient, modelCfg, cfg.Agent)
 
 		// Get the initialMessage content
 		var initialMessage string
@@ -97,14 +107,14 @@ var sendCmd = &cobra.Command{
 				return fmt.Errorf("--parent requires --thread to be specified")
 			}
 			// Find thread
-			thread, err := messageService.FindThreadByPartialID(ctx, threadFlag)
+			thread, err := repo.GetThreadByPartialID(ctx, threadFlag)
 			if err != nil {
 				return fmt.Errorf("failed to find thread: %w", err)
 			}
 			threadID = thread.ID
 
 			// Find parent message
-			parentMsg, err := messageService.FindMessageByPartialID(ctx, threadID, parentFlag)
+			parentMsg, err := repo.FindMessageByPartialID(ctx, threadID, parentFlag)
 			if err != nil {
 				return fmt.Errorf("failed to find parent message: %w", err)
 			}
@@ -113,28 +123,28 @@ var sendCmd = &cobra.Command{
 		} else {
 			// Regular send command flow
 			if threadFlag != "" {
-				thread, err := messageService.FindThreadByPartialID(ctx, threadFlag)
+				thread, err := repo.GetThreadByPartialID(ctx, threadFlag)
 				if err != nil {
 					return err
 				}
 				threadID = thread.ID
 			} else if continueFlag {
-				thread, err := messageService.GetActiveThread(ctx)
+				thread, err := repo.GetMostRecentThread(ctx)
 				if err != nil {
 					return err
 				}
 				threadID = thread.ID
 			} else {
 				// Create new thread
-				thread, err := messageService.NewThread(ctx)
-				if err != nil {
+				thread := &domain.Thread{}
+				if err := repo.CreateThread(ctx, thread); err != nil {
 					return fmt.Errorf("failed to create thread: %w", err)
 				}
 				threadID = thread.ID
 			}
 		}
 
-		sendOptions := message.SendMessageOptions{
+		sendOptions := agent.SendMessageOptions{
 			ThreadID: threadID,
 			ParentID: parentID,
 			Content:  initialMessage,
@@ -146,7 +156,6 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Handle followup mode
-		// TODO: remove followup mode
 		if followupFlag {
 			reader := bufio.NewReader(os.Stdin)
 			for {
@@ -174,7 +183,7 @@ var sendCmd = &cobra.Command{
 	},
 }
 
-func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.SendMessageOptions) error {
+func sendMessage(ctx context.Context, agentService *agent.Agent, opts agent.SendMessageOptions) error {
 	if !noStreamFlag {
 		opts.StreamHandler = &CLIStreamHandler{originalCallback: func(chunk []byte) error {
 			fmt.Print(string(chunk))
@@ -192,7 +201,6 @@ func sendMessage(ctx context.Context, agentService *agent.Agent, opts message.Se
 		if noStreamFlag {
 			fmt.Print(resp.Content)
 		}
-		// note: gemini does not stream tool use (is this an issue with langchaingo?)
 		errCh <- nil
 	}()
 
@@ -234,7 +242,7 @@ func (h *CLIStreamHandler) HandleFunctionCallStart(id, name string) error {
 	return nil
 }
 
-func (h *CLIStreamHandler) HandleFunctionCallChunk(chunk message.FunctionCallChunk) error {
+func (h *CLIStreamHandler) HandleFunctionCallChunk(chunk llm.FunctionCallChunk) error {
 	fmt.Print(h.formatJSON(chunk.ArgumentsJson))
 	return nil
 }

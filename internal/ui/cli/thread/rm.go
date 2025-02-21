@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/isaacphi/slop/internal/app"
-	"github.com/isaacphi/slop/internal/message"
+	"github.com/isaacphi/slop/internal/appState"
+	"github.com/isaacphi/slop/internal/repository/sqlite"
 	"github.com/spf13/cobra"
 )
 
@@ -15,28 +15,43 @@ var deleteCmd = &cobra.Command{
 	Short: "Delete a thread and all its messages",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg := app.Get().Config
-		messageService, err := message.InitializeMessageService(cfg, nil)
+		cfg := appState.Get().Config
+		repo, err := sqlite.Initialize(cfg.DBPath)
 		if err != nil {
 			return err
 		}
 
 		// Find thread by partial ID
-		thread, err := messageService.FindThreadByPartialID(cmd.Context(), args[0])
+		thread, err := repo.GetThreadByPartialID(cmd.Context(), args[0])
 		if err != nil {
 			return fmt.Errorf("failed to find thread: %w", err)
 		}
 
-		// Show thread info and confirm deletion
-		summary, err := messageService.GetThreadDetails(cmd.Context(), thread)
+		// Get thread info for display
+		messages, err := repo.GetMessages(cmd.Context(), thread.ID, nil, false)
 		if err != nil {
-			return fmt.Errorf("failed to get thread details: %w", err)
+			return fmt.Errorf("failed to get messages: %w", err)
 		}
 
-		fmt.Printf("About to delete thread %s:\n", summary.ID.String()[:8])
-		fmt.Printf("Created: %s\n", summary.CreatedAt.Format(time.RFC822))
-		fmt.Printf("Messages: %d\n", summary.MessageCount)
-		fmt.Printf("Preview: %s\n", summary.Preview)
+		preview := "[empty]"
+		if thread.Summary != "" {
+			preview = thread.Summary
+		} else {
+			for _, msg := range messages {
+				if msg.Role == "human" {
+					preview = msg.Content
+					break
+				}
+			}
+		}
+		if len(preview) > 50 {
+			preview = preview[:47] + "..."
+		}
+
+		fmt.Printf("About to delete thread %s:\n", thread.ID.String()[:8])
+		fmt.Printf("Created: %s\n", thread.CreatedAt.Format(time.RFC822))
+		fmt.Printf("Messages: %d\n", len(messages))
+		fmt.Printf("Preview: %s\n", preview)
 
 		if !forceFlag {
 			fmt.Print("\nAre you sure you want to delete this thread? [y/N] ")
@@ -53,7 +68,7 @@ var deleteCmd = &cobra.Command{
 			}
 		}
 
-		if err := messageService.DeleteThread(cmd.Context(), thread.ID); err != nil {
+		if err := repo.DeleteThread(cmd.Context(), thread.ID); err != nil {
 			return fmt.Errorf("failed to delete thread: %w", err)
 		}
 

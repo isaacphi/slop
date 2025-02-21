@@ -15,13 +15,6 @@ import (
 	"github.com/tmc/langchaingo/llms/openai"
 )
 
-// The LLM Client handles calls to llms
-// it is a wrapper around langchaingo
-type Client struct {
-	llm      llms.Model
-	modelCfg config.ModelPreset
-}
-
 type MessageResponse struct {
 	TextResponse string
 	ToolCalls    []ToolCall
@@ -33,7 +26,24 @@ type ToolCall struct {
 	Arguments json.RawMessage `json:"arguments"`
 }
 
-func NewClient(modelCfg config.ModelPreset) (*Client, error) {
+type StreamChunk interface {
+	Raw() []byte
+}
+
+type FunctionCallChunk struct {
+	Name          string `json:"name"`
+	ArgumentsJson string `json:"arguments"`
+}
+
+type StreamHandler interface {
+	HandleTextChunk(chunk []byte) error
+	HandleMessageDone() error
+	HandleFunctionCallStart(id, name string) error
+	HandleFunctionCallChunk(chunk FunctionCallChunk) error
+	Reset()
+}
+
+func createLLMClient(modelCfg config.ModelPreset) (llms.Model, error) {
 	var llm llms.Model
 	var err error
 
@@ -61,10 +71,7 @@ func NewClient(modelCfg config.ModelPreset) (*Client, error) {
 		return nil, fmt.Errorf("failed to create %s client: %w", modelCfg.Provider, err)
 	}
 
-	return &Client{
-		llm:      llm,
-		modelCfg: modelCfg,
-	}, nil
+	return llm, nil
 }
 
 func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
@@ -119,22 +126,18 @@ func convertProperty(prop mcp.Property) map[string]any {
 		"description": prop.Description,
 	}
 
-	// Add enum if present
 	if len(prop.Enum) > 0 {
 		result["enum"] = prop.Enum
 	}
 
-	// Add default if present
 	if prop.Default != nil {
 		result["default"] = prop.Default
 	}
 
-	// Handle array items
 	if prop.Type == "array" && prop.Items != nil {
 		result["items"] = convertProperty(*prop.Items)
 	}
 
-	// Handle nested object properties
 	if prop.Type == "object" && len(prop.Properties) > 0 {
 		nestedProps := make(map[string]any)
 		for name, p := range prop.Properties {
@@ -142,7 +145,6 @@ func convertProperty(prop mcp.Property) map[string]any {
 		}
 		result["properties"] = nestedProps
 
-		// Add required fields for nested object if present
 		if len(prop.Required) > 0 {
 			result["required"] = prop.Required
 		}
@@ -151,37 +153,45 @@ func convertProperty(prop mcp.Property) map[string]any {
 	return result
 }
 
-func (c *Client) GetConfig() config.ModelPreset {
-	return c.modelCfg
-}
+// GenerateContent generates content using the specified model configuration
+func GenerateContent(
+	ctx context.Context,
+	modelCfg config.ModelPreset,
+	content string,
+	history []domain.Message,
+	tools map[string]mcp.Tool,
+	streamHandler StreamHandler,
+) (MessageResponse, error) {
+	llmClient, err := createLLMClient(modelCfg)
+	if err != nil {
+		return MessageResponse{}, fmt.Errorf("failed to create LLM client: %w", err)
+	}
 
-// TODO: Make this functional: do not make it a method on the client. It should be called with model preset options
-func (c *Client) SendMessage(ctx context.Context, content string, history []domain.Message, stream bool, callback func(chunk []byte) error, tools map[string]mcp.Tool) (MessageResponse, error) {
-	wrappedCallback := func(ctx context.Context, chunk []byte) error {
-		// TODO: callback should include context and have same signature to remove wrappedCallback
-		return callback(chunk)
+	var streamCallback func(ctx context.Context, chunk []byte) error
+	if streamHandler != nil {
+		streamCallback = func(ctx context.Context, chunk []byte) error {
+			return streamHandler.HandleTextChunk(chunk)
+		}
 	}
 
 	opts := []llms.CallOption{
-		llms.WithTemperature(c.modelCfg.Temperature),
-		llms.WithMaxTokens(c.modelCfg.MaxTokens),
+		llms.WithTemperature(modelCfg.Temperature),
+		llms.WithMaxTokens(modelCfg.MaxTokens),
 	}
 
-	// Convert tools to proper format
 	langchainTools := getTools(tools)
-
 	if len(langchainTools) > 0 {
 		opts = append(opts, llms.WithTools(langchainTools))
 	}
 
-	if stream {
-		opts = append(opts, llms.WithStreamingFunc(wrappedCallback))
+	if streamHandler != nil {
+		opts = append(opts, llms.WithStreamingFunc(streamCallback))
 	}
 
 	msgs := buildMessageHistory(history)
 	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
 
-	resp, err := c.llm.GenerateContent(ctx, msgs, opts...)
+	resp, err := llmClient.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
 		return MessageResponse{}, fmt.Errorf("streaming message failed: %w", err)
 	}
@@ -191,23 +201,14 @@ func (c *Client) SendMessage(ctx context.Context, content string, history []doma
 	}
 
 	toolCalls := make([]ToolCall, 0)
-	// Log the full response details
-	// fmt.Printf("\nResponse object:\n")
 	for _, choice := range resp.Choices {
-		// fmt.Printf("Choice %d:\n", i)
-		// fmt.Printf("  Content: %s\n", choice.Content)
-		// fmt.Printf("  StopReason: %s\n", choice.StopReason)
-		// fmt.Printf("  GenerationInfo: %+v\n", choice.GenerationInfo)
 		if len(choice.ToolCalls) > 0 {
-			// fmt.Printf("  ToolCalls:\n")
 			for _, tc := range choice.ToolCalls {
 				toolCalls = append(toolCalls, ToolCall{
 					ID:        tc.ID,
 					Name:      tc.FunctionCall.Name,
 					Arguments: json.RawMessage(tc.FunctionCall.Arguments),
 				})
-				// fmt.Printf("    ID: %s\n", tc.ID)
-				// fmt.Printf("    Function: %+v\n", tc.FunctionCall)
 			}
 		}
 	}
