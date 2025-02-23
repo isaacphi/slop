@@ -33,6 +33,7 @@ type SendMessageOptions struct {
 	ParentID      *uuid.UUID
 	Content       string
 	StreamHandler llm.StreamHandler
+	Role          domain.Role
 }
 
 // New creates a new Agent with the given dependencies
@@ -143,12 +144,141 @@ func modifyToolWithPresets(original domain.Tool, presets map[string]string) doma
 
 // PendingFunctionCallError is returned when a function call needs user approval
 type PendingFunctionCallError struct {
-	Message  *domain.Message
-	ToolCall llm.ToolCall
+	Message   *domain.Message
+	ToolCalls []llm.ToolCall
 }
 
 func (e *PendingFunctionCallError) Error() string {
-	return fmt.Sprintf("pending function call approval for %s", e.ToolCall.Name)
+	return "Tool calls require approval"
+}
+
+// ExecuteTools executes a set of tool calls and returns the formatted results
+func (a *Agent) ExecuteTools(ctx context.Context, toolCalls []llm.ToolCall) (string, error) {
+	// Create channels for collecting results
+	type toolResult struct {
+		call   llm.ToolCall
+		result string
+		err    error
+	}
+
+	resultChan := make(chan toolResult, len(toolCalls))
+
+	// Execute tools concurrently
+	for _, call := range toolCalls {
+		go func(tc llm.ToolCall) {
+			result, err := a.executeFunction(ctx, tc, a.tools)
+			resultChan <- toolResult{
+				call:   tc,
+				result: result,
+				err:    err,
+			}
+		}(call)
+	}
+
+	// Collect all results
+	var combinedResults strings.Builder
+	combinedResults.WriteString("Tool call results:\n\n")
+
+	for i := 0; i < len(toolCalls); i++ {
+		res := <-resultChan
+
+		// Format the tool call header
+		fmt.Fprintf(&combinedResults, "Name: %s\n", res.call.Name)
+		fmt.Fprintf(&combinedResults, "ID: %s\n", res.call.ID)
+		fmt.Fprintf(&combinedResults, "Arguments: %s\n", string(res.call.Arguments))
+		fmt.Fprint(&combinedResults, "Result:\n")
+
+		// Add result or error
+		if res.err != nil {
+			fmt.Fprintf(&combinedResults, "Error: %v\n", res.err)
+		} else {
+			fmt.Fprintf(&combinedResults, "%s\n", res.result)
+		}
+
+		// Add separator between results unless it's the last one
+		if i < len(toolCalls)-1 {
+			combinedResults.WriteString("\n")
+		}
+	}
+
+	return combinedResults.String(), nil
+}
+
+// ApproveAndExecuteTools handles tool approval and execution, then continues the conversation
+func (a *Agent) ApproveAndExecuteTools(ctx context.Context, messageID uuid.UUID, opts SendMessageOptions) (*domain.Message, error) {
+	msg, err := a.repository.GetMessage(ctx, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message with pending tool call: %w", err)
+	}
+
+	if msg.Role != domain.RoleAssistant {
+		return nil, fmt.Errorf("message must have role Assistant")
+	}
+
+	if msg.ToolCalls == "" {
+		return nil, fmt.Errorf("no tool calls found in message")
+	}
+
+	// Parse tool calls
+	var toolCalls []llm.ToolCall
+	if err := json.Unmarshal([]byte(msg.ToolCalls), &toolCalls); err != nil {
+		return nil, fmt.Errorf("failed to parse tool calls: %w", err)
+	}
+
+	if len(toolCalls) == 0 {
+		return nil, fmt.Errorf("no tool calls found in message")
+	}
+
+	// Execute the tools
+	results, err := a.ExecuteTools(ctx, toolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute tools: %w", err)
+	}
+
+	// Send results back to continue conversation
+	return a.SendMessage(ctx, SendMessageOptions{
+		ThreadID:      msg.ThreadID,
+		ParentID:      &messageID,
+		Content:       results,
+		Role:          domain.RoleTool,
+		StreamHandler: opts.StreamHandler,
+	})
+}
+
+// RejectTools handles tool rejection with an optional message
+func (a *Agent) RejectTools(ctx context.Context, messageID uuid.UUID, reason string, opts SendMessageOptions) (*domain.Message, error) {
+	msg, err := a.repository.GetMessage(ctx, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message with pending tool call: %w", err)
+	}
+
+	if msg.Role != domain.RoleAssistant {
+		return nil, fmt.Errorf("message must have role Assistant")
+	}
+
+	if msg.ToolCalls == "" {
+		return nil, fmt.Errorf("no tool calls found in message")
+	}
+
+	// Parse tool calls
+	var toolCalls []llm.ToolCall
+	if err := json.Unmarshal([]byte(msg.ToolCalls), &toolCalls); err != nil {
+		return nil, fmt.Errorf("failed to parse tool calls: %w", err)
+	}
+
+	if len(toolCalls) == 0 {
+		return nil, fmt.Errorf("no tool calls found in message")
+	}
+
+	// Send rejection message
+	content := fmt.Sprintf("Function call denied: %s\nPlease suggest an alternative approach.", reason)
+	return a.SendMessage(ctx, SendMessageOptions{
+		ThreadID:      msg.ThreadID,
+		ParentID:      &messageID,
+		Content:       content,
+		Role:          domain.RoleHuman,
+		StreamHandler: opts.StreamHandler,
+	})
 }
 
 // validateArguments checks if the provided arguments match the tool's schema
@@ -282,7 +412,7 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 // SendMessage sends a message through the Agent, handling any function calls
 func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
 	// Verify thread exists
-	thread, err := a.repository.GetThreadByID(ctx, opts.ThreadID)
+	thread, err := a.repository.GetThread(ctx, opts.ThreadID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
@@ -305,11 +435,15 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
 
-	// Create user message
+	if opts.Role == domain.RoleAssistant {
+		return nil, fmt.Errorf("cannot send message with role Assistant")
+	}
+
+	// Create message
 	userMsg := &domain.Message{
 		ThreadID: opts.ThreadID,
 		ParentID: opts.ParentID,
-		Role:     domain.RoleHuman,
+		Role:     opts.Role,
 		Content:  opts.Content,
 	}
 
@@ -355,16 +489,8 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		return aiMsg, nil
 	}
 
-	// Create channels for collecting results
-	type toolResult struct {
-		call   llm.ToolCall
-		result string
-		err    error
-	}
-
 	// Check if any tools require approval
-	var needsApproval *llm.ToolCall
-	toolsForAutoExec := make([]llm.ToolCall, 0)
+	var toolsNeedingApproval []llm.ToolCall
 
 	for _, call := range aiResponse.ToolCalls {
 		// Find tool approval setting
@@ -372,74 +498,34 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 			for toolName, tool := range serverTools {
 				if fmt.Sprintf("%s__%s", serverName, toolName) == call.Name {
 					if tool.RequireApproval {
-						if needsApproval == nil {
-							needsApproval = &call
-						}
-					} else {
-						toolsForAutoExec = append(toolsForAutoExec, call)
+						toolsNeedingApproval = append(toolsNeedingApproval, call)
 					}
 				}
 			}
 		}
 	}
 
-	// If any tool needs approval, return first one
-	if needsApproval != nil {
+	// If any tools need approval, return error with all of them
+	if len(toolsNeedingApproval) > 0 {
 		return aiMsg, &PendingFunctionCallError{
-			Message:  aiMsg,
-			ToolCall: *needsApproval,
+			Message:   aiMsg,
+			ToolCalls: toolsNeedingApproval,
 		}
 	}
 
-	// Execute auto-approved tools concurrently
-	resultChan := make(chan toolResult, len(toolsForAutoExec))
-
-	for _, call := range toolsForAutoExec {
-		go func(tc llm.ToolCall) {
-			result, err := a.executeFunction(ctx, tc, a.tools)
-			resultChan <- toolResult{
-				call:   tc,
-				result: result,
-				err:    err,
-			}
-		}(call)
+	// All tools are auto-approved, execute them concurrently
+	results, err := a.ExecuteTools(ctx, aiResponse.ToolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute tools: %w", err)
 	}
 
-	// Collect all results
-	var combinedResults strings.Builder
-	combinedResults.WriteString("Tool call results:\n\n")
-
-	for i := 0; i < len(aiResponse.ToolCalls); i++ {
-		res := <-resultChan
-
-		// Format the tool call header
-		fmt.Fprintf(&combinedResults, "Name: %s\n", res.call.Name)
-		fmt.Fprintf(&combinedResults, "ID: %s\n", res.call.ID)
-		fmt.Fprintf(&combinedResults, "Arguments: %s\n", string(res.call.Arguments))
-		fmt.Fprint(&combinedResults, "Result:\n")
-
-		// Add result or error
-		if res.err != nil {
-			fmt.Fprintf(&combinedResults, "Error: %v\n", res.err)
-		} else {
-			fmt.Fprintf(&combinedResults, "%s\n", res.result)
-		}
-
-		// Add separator between results unless it's the last one
-		if i < len(aiResponse.ToolCalls)-1 {
-			combinedResults.WriteString("\n")
-		}
-	}
-
-	// Send combined results as followup message
-	followupOpts := SendMessageOptions{
+	return a.SendMessage(ctx, SendMessageOptions{
 		ThreadID:      opts.ThreadID,
 		ParentID:      &aiMsg.ID,
-		Content:       combinedResults.String(),
+		Content:       results,
+		Role:          domain.RoleTool,
 		StreamHandler: opts.StreamHandler,
-	}
-
-	return a.SendMessage(ctx, followupOpts)
+	})
 }
 
 // DenyFunctionCall handles a denied function call

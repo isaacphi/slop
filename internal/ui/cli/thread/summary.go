@@ -55,3 +55,7 @@ var summaryCmd = &cobra.Command{
 		return nil
 	},
 }
+
+func init() {
+	ThreadCmd.AddCommand(summaryCmd)
+}

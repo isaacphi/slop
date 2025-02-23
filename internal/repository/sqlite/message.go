@@ -17,6 +17,19 @@ func (r *messageRepo) AddMessageToThread(ctx context.Context, threadID uuid.UUID
 	return r.db.WithContext(ctx).Create(msg).Error
 }
 
+func (r *messageRepo) GetMessage(ctx context.Context, messageID uuid.UUID) (*domain.Message, error) {
+	var msg domain.Message
+	if err := r.db.WithContext(ctx).
+		Preload("Thread").
+		First(&msg, messageID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("Message not found")
+		}
+		return nil, err
+	}
+	return &msg, nil
+}
+
 func (r *messageRepo) GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error) {
 	var messages []domain.Message
 

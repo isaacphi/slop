@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 
 	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/agent"
@@ -35,9 +33,7 @@ var sendCmd = &cobra.Command{
 	Use:   "send [message]",
 	Short: "Send messages to an LLM",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Create cancellable context
-		ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
-		defer cancel()
+		ctx := cmd.Context()
 
 		cfg := appState.Get().Config
 
@@ -344,4 +340,5 @@ func init() {
 	sendCmd.Flags().BoolVarP(&noStreamFlag, "no-stream", "n", false, "Disable streaming of responses")
 	sendCmd.Flags().IntVar(&maxTokensFlag, "max-tokens", 0, "Override maximum length")
 	sendCmd.Flags().Float64Var(&temperatureFlag, "temperature", 0, "Override temperature")
+	MsgCmd.AddCommand(sendCmd)
 }

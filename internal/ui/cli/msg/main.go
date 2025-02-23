@@ -8,7 +8,3 @@ var MsgCmd = &cobra.Command{
 	Use:   "msg",
 	Short: "Manage messages in conversations",
 }
-
-func init() {
-	MsgCmd.AddCommand(sendCmd, deleteCmd)
-}

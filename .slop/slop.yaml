@@ -18,8 +18,8 @@ toolsets:
       requireApproval: true
       allowedTools:
         read_file:
-          requireApproval: false
-          presetParameters:
-            path: /Users/phil/dev/slop/.slop/slop.yaml
+          requireApproval: true
+        edit_file:
+          requireApproval: true
         write_file:
           requireApproval: true

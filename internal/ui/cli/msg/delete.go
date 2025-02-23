@@ -45,3 +45,7 @@ var deleteCmd = &cobra.Command{
 		return nil
 	},
 }
+
+func init() {
+	MsgCmd.AddCommand(deleteCmd)
+}

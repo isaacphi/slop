@@ -10,6 +10,7 @@ type Role string
 const (
 	RoleHuman     Role = "human"
 	RoleAssistant Role = "assistant"
+	RoleTool      Role = "tool"
 )
 
 type Thread struct {

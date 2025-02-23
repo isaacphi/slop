@@ -10,7 +10,7 @@ import (
 type MessageRepository interface {
 	// Threads
 	CreateThread(ctx context.Context, thread *domain.Thread) error
-	GetThreadByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error)
+	GetThread(ctx context.Context, id uuid.UUID) (*domain.Thread, error)
 	ListThreads(ctx context.Context, limit int) ([]*domain.Thread, error)
 	GetMostRecentThread(ctx context.Context) (*domain.Thread, error)
 	GetThreadByPartialID(ctx context.Context, partialID string) (*domain.Thread, error)
@@ -19,6 +19,7 @@ type MessageRepository interface {
 
 	// Messages
 	// Get messages in thread up to and including message with ID messageID getFutureMessages also fetches child messages.
+	GetMessage(ctx context.Context, messageID uuid.UUID) (*domain.Message, error)
 	GetMessages(ctx context.Context, threadID uuid.UUID, messageID *uuid.UUID, getFutureMessages bool) ([]domain.Message, error)
 	FindMessageByPartialID(ctx context.Context, threadID uuid.UUID, partialID string) (*domain.Message, error)
 	DeleteLastMessages(ctx context.Context, threadID uuid.UUID, count int) error

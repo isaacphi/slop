@@ -51,3 +51,8 @@ var viewCmd = &cobra.Command{
 		return nil
 	},
 }
+
+func init() {
+	viewCmd.Flags().IntVarP(&limitFlag, "limit", "n", 0, "Limit the number of messages to show (0 for all)")
+	ThreadCmd.AddCommand(viewCmd)
+}

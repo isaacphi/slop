@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -13,13 +14,13 @@ func (r *messageRepo) CreateThread(ctx context.Context, thread *domain.Thread) e
 	return r.db.WithContext(ctx).Create(thread).Error
 }
 
-func (r *messageRepo) GetThreadByID(ctx context.Context, id uuid.UUID) (*domain.Thread, error) {
+func (r *messageRepo) GetThread(ctx context.Context, id uuid.UUID) (*domain.Thread, error) {
 	var thread domain.Thread
 	if err := r.db.WithContext(ctx).
 		Preload("Messages").
 		First(&thread, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, domain.NoConversationError{}
+			return nil, fmt.Errorf("Conversation not found")
 		}
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (r *messageRepo) GetMostRecentThread(ctx context.Context) (*domain.Thread, 
 	var thread domain.Thread
 	if err := r.db.WithContext(ctx).Order("created_at DESC").First(&thread).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, domain.NoConversationError{}
+			return nil, fmt.Errorf("Conversation not found")
 		}
 		return nil, err
 	}
@@ -75,7 +76,7 @@ func (r *messageRepo) GetThreadByPartialID(ctx context.Context, partialID string
 		Order("created_at DESC").
 		First(&thread).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, domain.NoConversationError{}
+			return nil, fmt.Errorf("Conversation not found")
 		}
 		return nil, err
 	}

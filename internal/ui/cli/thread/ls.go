@@ -62,3 +62,8 @@ var listCmd = &cobra.Command{
 		return nil
 	},
 }
+
+func init() {
+	listCmd.Flags().IntVarP(&limitFlag, "limit", "n", 0, "Limit the number of threads to show (0 for all)")
+	ThreadCmd.AddCommand(listCmd)
+}

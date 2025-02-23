@@ -76,3 +76,8 @@ var deleteCmd = &cobra.Command{
 		return nil
 	},
 }
+
+func init() {
+	deleteCmd.Flags().BoolVarP(&forceFlag, "force", "f", false, "Delete without confirmation")
+	ThreadCmd.AddCommand(deleteCmd)
+}
