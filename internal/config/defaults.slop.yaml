@@ -16,8 +16,6 @@ log:
   logFile: ""
   logLevel: INFO
 dbPath: .slop/slop.db
-agent:
-  autoApproveFunctions: true
 internal:
   model: "openai"
   summaryPrompt: >

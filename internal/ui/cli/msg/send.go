@@ -71,7 +71,10 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Initialize Agent
-		agentService := agent.New(repo, mcpClient, modelCfg, cfg.Agent)
+		agentService, err := agent.New(repo, mcpClient, modelCfg, cfg.Toolsets)
+		if err != nil {
+			return fmt.Errorf("could not initialize MCP agent: %w", err)
+		}
 
 		// Get the initialMessage content
 		var initialMessage string
@@ -232,9 +235,10 @@ func (h *CLIStreamHandler) HandleTextChunk(chunk []byte) error {
 	return h.originalCallback(chunk)
 }
 
-func (h *CLIStreamHandler) HandleMessageDone() error {
+func (h *CLIStreamHandler) HandleMessageDone() {
+	h.inQuote = false
+	h.escaped = false
 	fmt.Print("\n\n")
-	return nil
 }
 
 func (h *CLIStreamHandler) HandleFunctionCallStart(id, name string) error {
@@ -245,11 +249,6 @@ func (h *CLIStreamHandler) HandleFunctionCallStart(id, name string) error {
 func (h *CLIStreamHandler) HandleFunctionCallChunk(chunk llm.FunctionCallChunk) error {
 	fmt.Print(h.formatJSON(chunk.ArgumentsJson))
 	return nil
-}
-
-func (h *CLIStreamHandler) Reset() {
-	h.inQuote = false
-	h.escaped = false
 }
 
 func (h *CLIStreamHandler) formatJSON(data string) string {

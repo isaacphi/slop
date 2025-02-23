@@ -15,8 +15,11 @@ modelPresets:
 toolsets:
   mytools:
     filesystem:
-      requireApproval: false
+      requireApproval: true
       allowedTools:
-        read_file: {}
+        read_file:
+          requireApproval: false
+          presetParameters:
+            path: /Users/phil/dev/slop/.slop/slop.yaml
         write_file:
           requireApproval: true

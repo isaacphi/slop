@@ -1,22 +1,28 @@
 package mcp
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 func (c *Client) PrintTools() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Group tools by server
-	serverTools := make(map[string][]Tool)
-	for _, tool := range c.tools {
-		serverTools[tool.ServerName] = append(serverTools[tool.ServerName], tool)
-	}
-
-	// Print in YAML format
-	for serverName, tools := range serverTools {
+	// Already grouped by server in the new structure
+	for serverName, tools := range c.tools {
 		fmt.Printf("%s:\n", serverName)
-		for _, tool := range tools {
-			fmt.Printf("  %s:\n", tool.Name)
+
+		// Sort tool names for consistent output
+		toolNames := make([]string, 0, len(tools))
+		for toolName := range tools {
+			toolNames = append(toolNames, toolName)
+		}
+		sort.Strings(toolNames)
+
+		for _, toolName := range toolNames {
+			tool := tools[toolName]
+			fmt.Printf("  %s:\n", toolName)
 			fmt.Printf("    description: %s\n", tool.Description)
 			fmt.Printf("    parameters:\n")
 
@@ -33,7 +39,16 @@ func (c *Client) PrintTools() {
 
 			if len(tool.Parameters.Properties) > 0 {
 				fmt.Printf("      properties:\n")
-				for propName, prop := range tool.Parameters.Properties {
+
+				// Sort property names for consistent output
+				propNames := make([]string, 0, len(tool.Parameters.Properties))
+				for propName := range tool.Parameters.Properties {
+					propNames = append(propNames, propName)
+				}
+				sort.Strings(propNames)
+
+				for _, propName := range propNames {
+					prop := tool.Parameters.Properties[propName]
 					fmt.Printf("        %s:\n", propName)
 					if prop.Type != "" {
 						fmt.Printf("          type: %s\n", prop.Type)
@@ -43,6 +58,7 @@ func (c *Client) PrintTools() {
 					}
 					if len(prop.Enum) > 0 {
 						fmt.Printf("          enum:\n")
+						sort.Strings(prop.Enum) // Sort enums for consistent output
 						for _, enum := range prop.Enum {
 							fmt.Printf("            - %s\n", enum)
 						}

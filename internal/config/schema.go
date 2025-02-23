@@ -12,7 +12,6 @@ type ConfigSchema struct {
 	DBPath       string                 `mapstructure:"dbPath" json:"dbPath" jsonschema:"description=Path to the database file,default=.slop/slop.db"`
 	Internal     Internal               `mapstructure:"internal" json:"internal" jsonschema:"description=Internal configuration settings"`
 	MCPServers   map[string]MCPServer   `mapstructure:"mcpServers" json:"mcpServers" jsonschema:"description=MCP server configurations"`
-	Agent        Agent                  `mapstructure:"agent" json:"agent" jsonschema:"description=Agent behavior settings"`
 	Log          Log                    `mapstructure:"log" json:"log" jsonschema:"description=Logging configuration"`
 	Toolsets     map[string]Toolset     `mapstructure:"toolsets" json:"toolsets" jsonschema:"description=Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."`
 
@@ -54,12 +53,6 @@ type MCPServer struct {
 	Command string            `mapstructure:"command" json:"command" jsonschema:"description=Command to run the MCP server"`
 	Args    []string          `mapstructure:"args" json:"args" jsonschema:"description=Command line arguments for the MCP server"`
 	Env     map[string]string `mapstructure:"env" json:"env" jsonschema:"description=Environment variables for the MCP server"`
-}
-
-// Agent configuration
-// TODO: remove
-type Agent struct {
-	AutoApproveFunctions bool `mapstructure:"autoApproveFunctions" json:"autoApproveFunctions" jsonschema:"description=Automatically approve function calls,default=true"`
 }
 
 // Logging configuration

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/domain"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 	"github.com/pkg/errors"
@@ -19,35 +20,9 @@ type Client struct {
 	servers     map[string]config.MCPServer
 	clients     map[string]*mcp_golang.Client
 	commands    map[string]*exec.Cmd
-	tools       map[string]Tool
+	tools       map[string]map[string]domain.Tool
 	mu          sync.RWMutex
 	initialized bool
-}
-
-// TODO: There should be a tool type in "agent"?
-type Tool struct {
-	Name        string
-	FullName    string
-	ServerName  string
-	MCPClient   *mcp_golang.Client
-	Description string
-	Parameters  Parameters
-}
-
-type Parameters struct {
-	Type       string              `mapstructure:"type" json:"type" jsonschema:"enum=object,default=object"`
-	Properties map[string]Property `mapstructure:"properties" json:"properties" jsonschema:"description=Properties of the parameter object"`
-	Required   []string            `mapstructure:"required" json:"required" jsonschema:"description=List of required property names"`
-}
-
-type Property struct {
-	Type        string              `mapstructure:"type" json:"type" jsonschema:"description=JSON Schema type of the property"`
-	Description string              `mapstructure:"description" json:"description" jsonschema:"description=Description of what the property does"`
-	Enum        []string            `mapstructure:"enum,omitempty" json:"enum,omitempty" jsonschema:"description=Allowed values for this property"`
-	Items       *Property           `mapstructure:"items,omitempty" json:"items,omitempty" jsonschema:"description=Schema for array items"`
-	Properties  map[string]Property `mapstructure:"properties,omitempty" json:"properties,omitempty" jsonschema:"description=Nested properties for object types"`
-	Required    []string            `mapstructure:"required,omitempty" json:"required,omitempty" jsonschema:"description=Required nested properties"`
-	Default     interface{}         `mapstructure:"default,omitempty" json:"default,omitempty" jsonschema:"description=Default value for this property"`
 }
 
 // New creates a new MCP client manager
@@ -56,7 +31,7 @@ func New(servers map[string]config.MCPServer) *Client {
 		servers:  servers,
 		clients:  make(map[string]*mcp_golang.Client),
 		commands: make(map[string]*exec.Cmd),
-		tools:    make(map[string]Tool),
+		tools:    make(map[string]map[string]domain.Tool),
 	}
 }
 
@@ -152,12 +127,11 @@ func (c *Client) startServer(ctx context.Context, name string, server config.MCP
 	return nil
 }
 
-// buildToolRegistry creates a map of all available tools across all servers
 func (c *Client) buildToolRegistry(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.tools = make(map[string]Tool)
+	c.tools = make(map[string]map[string]domain.Tool)
 
 	for serverName, client := range c.clients {
 		response, err := client.ListTools(ctx, nil)
@@ -165,25 +139,21 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 			return errors.Wrapf(err, "failed to list tools for server %s", serverName)
 		}
 
-		for _, mcpTool := range response.Tools {
-			fullToolName := fmt.Sprintf("%s__%s", serverName, mcpTool.Name)
+		c.tools[serverName] = make(map[string]domain.Tool)
 
+		for _, mcpTool := range response.Tools {
 			description := ""
 			if mcpTool.Description != nil {
 				description = *mcpTool.Description
 			}
 
-			// Get schema from inputSchema which should be a map[string]interface{}
-			var params Parameters
+			var params domain.Parameters
 			if schema, ok := mcpTool.InputSchema.(map[string]interface{}); ok {
 				params = parseSchema(schema)
 			}
 
-			c.tools[fullToolName] = Tool{
+			c.tools[serverName][mcpTool.Name] = domain.Tool{
 				Name:        mcpTool.Name,
-				FullName:    fullToolName,
-				ServerName:  serverName,
-				MCPClient:   client,
 				Description: description,
 				Parameters:  params,
 			}
@@ -193,9 +163,9 @@ func (c *Client) buildToolRegistry(ctx context.Context) error {
 	return nil
 }
 
-func parseSchema(schema map[string]interface{}) Parameters {
-	params := Parameters{
-		Properties: make(map[string]Property),
+func parseSchema(schema map[string]interface{}) domain.Parameters {
+	params := domain.Parameters{
+		Properties: make(map[string]domain.Property),
 	}
 
 	if t, ok := schema["type"].(string); ok {
@@ -223,8 +193,8 @@ func parseSchema(schema map[string]interface{}) Parameters {
 	return params
 }
 
-func parseProperty(propMap map[string]interface{}) Property {
-	property := Property{}
+func parseProperty(propMap map[string]interface{}) domain.Property {
+	property := domain.Property{}
 
 	if t, ok := propMap["type"].(string); ok {
 		property.Type = t
@@ -255,7 +225,7 @@ func parseProperty(propMap map[string]interface{}) Property {
 
 	// Handle nested object properties
 	if props, ok := propMap["properties"].(map[string]interface{}); ok {
-		property.Properties = make(map[string]Property)
+		property.Properties = make(map[string]domain.Property)
 		for name, p := range props {
 			if pMap, ok := p.(map[string]interface{}); ok {
 				property.Properties[name] = parseProperty(pMap)
@@ -276,15 +246,8 @@ func parseProperty(propMap map[string]interface{}) Property {
 	return property
 }
 
-// CallTool calls a tool using its fully qualified name (serverName__toolName)
-func (c *Client) CallTool(ctx context.Context, name string, arguments interface{}) (*mcp_golang.ToolResponse, error) {
-	parts := strings.Split(name, "__")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid tool name format, expected 'server__tool', got '%s'", name)
-	}
-
-	serverName, toolName := parts[0], parts[1]
-
+// CallTool calls a tool on a specific server
+func (c *Client) CallTool(ctx context.Context, serverName string, toolName string, arguments interface{}) (*mcp_golang.ToolResponse, error) {
 	c.mu.RLock()
 	client, exists := c.clients[serverName]
 	c.mu.RUnlock()
@@ -296,19 +259,19 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments interface{
 	return client.CallTool(ctx, toolName, arguments)
 }
 
-// GetTools returns a map of all available tools
-func (c *Client) GetTools() map[string]Tool {
-	// TODO: edit this
+func (c *Client) GetTools() map[string]map[string]domain.Tool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	// Create a copy of the tools map to prevent external modification
-	tools := make(map[string]Tool, len(c.tools))
-	for k, v := range c.tools {
-		tools[k] = v
+	result := make(map[string]map[string]domain.Tool)
+	for server, tools := range c.tools {
+		result[server] = make(map[string]domain.Tool)
+		for name, tool := range tools {
+			result[server][name] = tool
+		}
 	}
 
-	return tools
+	return result
 }
 
 // Shutdown stops all servers and cleans up resources in parallel
@@ -340,6 +303,6 @@ func (c *Client) Shutdown() {
 
 	c.commands = make(map[string]*exec.Cmd)
 	c.clients = make(map[string]*mcp_golang.Client)
-	c.tools = make(map[string]Tool)
+	c.tools = make(map[string]map[string]domain.Tool)
 	c.initialized = false
 }

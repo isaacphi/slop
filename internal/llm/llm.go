@@ -8,7 +8,6 @@ import (
 
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
-	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/googleai"
@@ -37,10 +36,9 @@ type FunctionCallChunk struct {
 
 type StreamHandler interface {
 	HandleTextChunk(chunk []byte) error
-	HandleMessageDone() error
+	HandleMessageDone()
 	HandleFunctionCallStart(id, name string) error
 	HandleFunctionCallChunk(chunk FunctionCallChunk) error
-	Reset()
 }
 
 func createLLMClient(modelCfg config.ModelPreset) (llms.Model, error) {
@@ -88,7 +86,7 @@ func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
 	return history
 }
 
-func getTools(tools map[string]mcp.Tool) []llms.Tool {
+func getTools(tools map[string]domain.Tool) []llms.Tool {
 	var result []llms.Tool
 	for name, tool := range tools {
 		paramsMap := convertParameters(tool.Parameters)
@@ -106,7 +104,7 @@ func getTools(tools map[string]mcp.Tool) []llms.Tool {
 	return result
 }
 
-func convertParameters(params mcp.Parameters) map[string]any {
+func convertParameters(params domain.Parameters) map[string]any {
 	properties := make(map[string]any)
 
 	for pName, prop := range params.Properties {
@@ -120,7 +118,7 @@ func convertParameters(params mcp.Parameters) map[string]any {
 	}
 }
 
-func convertProperty(prop mcp.Property) map[string]any {
+func convertProperty(prop domain.Property) map[string]any {
 	result := map[string]any{
 		"type":        prop.Type,
 		"description": prop.Description,
@@ -159,7 +157,7 @@ func GenerateContent(
 	modelCfg config.ModelPreset,
 	content string,
 	history []domain.Message,
-	tools map[string]mcp.Tool,
+	tools map[string]domain.Tool,
 	streamHandler StreamHandler,
 ) (MessageResponse, error) {
 	llmClient, err := createLLMClient(modelCfg)
@@ -168,8 +166,34 @@ func GenerateContent(
 	}
 
 	var streamCallback func(ctx context.Context, chunk []byte) error
+
 	if streamHandler != nil {
+		// Closure to track streaming state
+		var currentFunctionId string
+
 		streamCallback = func(ctx context.Context, chunk []byte) error {
+			// Try to parse as function call first
+			// When a function call is about to start, a chunk with the following format is sent:
+			// [{"function":{"arguments":"","name":"filesystem__read_file"},"id":"toolu_01TA4sQsjA1XhWDBBof9THGJ","type":"function"}]
+			// Subsequent chunks take the form below, with "arguments" containing incremental chunks of the arguments json
+			// [{"function":{"arguments":"ml\"}","name":"filesystem__read_file"},"id":"toolu_01TA4sQsjA1XhWDBBof9THGJ","type":"function"}]
+			var fcall []struct {
+				Function FunctionCallChunk `json:"function"`
+				Id       *string           `json:"id,omitempty"`
+			}
+			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
+				// This is a function call chunk
+				functionName := fcall[0].Function.Name
+				functionId := fcall[0].Id
+				if functionId != nil && currentFunctionId != *functionId {
+					if err := streamHandler.HandleFunctionCallStart(*functionId, functionName); err != nil {
+						return err
+					}
+					currentFunctionId = *functionId
+				}
+				return streamHandler.HandleFunctionCallChunk(fcall[0].Function)
+			}
+			// Regular text chunk
 			return streamHandler.HandleTextChunk(chunk)
 		}
 	}
@@ -194,6 +218,10 @@ func GenerateContent(
 	resp, err := llmClient.GenerateContent(ctx, msgs, opts...)
 	if err != nil {
 		return MessageResponse{}, fmt.Errorf("streaming message failed: %w", err)
+	}
+
+	if streamHandler != nil {
+		streamHandler.HandleMessageDone()
 	}
 
 	if len(resp.Choices) == 0 {

@@ -19,8 +19,13 @@ type Agent struct {
 	repository  repository.MessageRepository
 	mcpClient   *mcp.Client
 	modelConfig config.ModelPreset
-	tools       map[string]mcp.Tool
-	cfg         config.Agent
+	tools       map[string]map[string]toolWithApproval
+	toolsets    map[string]config.Toolset
+}
+
+type toolWithApproval struct {
+	domain.Tool
+	RequireApproval bool
 }
 
 type SendMessageOptions struct {
@@ -31,14 +36,109 @@ type SendMessageOptions struct {
 }
 
 // New creates a new Agent with the given dependencies
-func New(repo repository.MessageRepository, mcpClient *mcp.Client, modelCfg config.ModelPreset, cfg config.Agent) *Agent {
+func New(repo repository.MessageRepository, mcpClient *mcp.Client, modelCfg config.ModelPreset, toolsets map[string]config.Toolset) (*Agent, error) {
+
+	tools, err := filterAndModifyTools(mcpClient.GetTools(), modelCfg.Toolsets, toolsets)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to process toolsets: %w", err)
+	}
+
 	return &Agent{
 		repository:  repo,
 		mcpClient:   mcpClient,
 		modelConfig: modelCfg,
-		tools:       mcpClient.GetTools(),
-		cfg:         cfg,
+		tools:       tools,
+		toolsets:    toolsets,
+	}, nil
+}
+
+func flattenTools(tools map[string]map[string]toolWithApproval) map[string]domain.Tool {
+	flat := make(map[string]domain.Tool)
+	for server, serverTools := range tools {
+		for name, tool := range serverTools {
+			flat[fmt.Sprintf("%s__%s", server, name)] = tool.Tool
+		}
 	}
+	return flat
+}
+
+func filterAndModifyTools(allTools map[string]map[string]domain.Tool, modelToolsets []string, toolsets map[string]config.Toolset) (map[string]map[string]toolWithApproval, error) {
+	result := make(map[string]map[string]toolWithApproval)
+
+	for _, toolsetName := range modelToolsets {
+		toolset := toolsets[toolsetName]
+
+		for serverName, serverConfig := range toolset {
+			serverTools, exists := allTools[serverName]
+			if !exists {
+				return nil, fmt.Errorf("server %q not found", serverName)
+			}
+
+			if _, exists := result[serverName]; !exists {
+				result[serverName] = make(map[string]toolWithApproval)
+			}
+
+			// If AllowedTools is empty, include all server tools with server-level approval
+			if len(serverConfig.AllowedTools) == 0 {
+				for toolName, tool := range serverTools {
+					result[serverName][toolName] = toolWithApproval{
+						Tool:            tool,
+						RequireApproval: serverConfig.RequireApproval,
+					}
+				}
+				continue
+			}
+
+			// Process specific allowed tools
+			for toolName, toolConfig := range serverConfig.AllowedTools {
+				tool, exists := serverTools[toolName]
+				if !exists {
+					return nil, fmt.Errorf("tool %q not found in server %q", toolName, serverName)
+				}
+
+				if len(toolConfig.PresetParameters) > 0 {
+					tool = modifyToolWithPresets(tool, toolConfig.PresetParameters)
+				}
+
+				result[serverName][toolName] = toolWithApproval{
+					Tool:            tool,
+					RequireApproval: toolConfig.RequireApproval,
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func modifyToolWithPresets(original domain.Tool, presets map[string]string) domain.Tool {
+	modified := original
+
+	// Create new properties map
+	newProps := make(map[string]domain.Property)
+	newRequired := make([]string, 0)
+
+	// Copy non-preset parameters
+	for name, prop := range original.Parameters.Properties {
+		if _, isPreset := presets[name]; !isPreset {
+			newProps[name] = prop
+			// Only include in required if it's not preset
+			for _, req := range original.Parameters.Required {
+				if req == name {
+					newRequired = append(newRequired, name)
+				}
+			}
+		}
+	}
+
+	modified.Parameters = domain.Parameters{
+		Type:       original.Parameters.Type,
+		Properties: newProps,
+		Required:   newRequired,
+	}
+
+	return modified
 }
 
 // PendingFunctionCallError is returned when a function call needs user approval
@@ -52,7 +152,7 @@ func (e *PendingFunctionCallError) Error() string {
 }
 
 // validateArguments checks if the provided arguments match the tool's schema
-func validateArguments(args json.RawMessage, tool mcp.Tool) error {
+func validateArguments(args json.RawMessage, tool toolWithApproval) error {
 	var parsedArgs map[string]interface{}
 	if err := json.Unmarshal(args, &parsedArgs); err != nil {
 		return fmt.Errorf("invalid argument format: %w", err)
@@ -112,36 +212,71 @@ func validateArguments(args json.RawMessage, tool mcp.Tool) error {
 	return nil
 }
 
-// executeFunction executes a function call and returns its result
-func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tools map[string]mcp.Tool) (string, error) {
-	tool, exists := tools[toolCall.Name]
-	if !exists {
-		return "", fmt.Errorf("function %s not found", toolCall.Name)
+func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tools map[string]map[string]toolWithApproval) (string, error) {
+	// Find the tool
+	for serverName, serverTools := range tools {
+		for toolName, tool := range serverTools {
+			if fmt.Sprintf("%s__%s", serverName, toolName) == toolCall.Name {
+				// Parse provided arguments
+				var providedArgs map[string]interface{}
+				if err := json.Unmarshal(toolCall.Arguments, &providedArgs); err != nil {
+					return "", fmt.Errorf("failed to parse arguments: %w", err)
+				}
+
+				// Check if any parameters were preset
+				originalTools := a.mcpClient.GetTools()
+				originalTool := originalTools[serverName][toolName]
+
+				// Find preset parameters by comparing schemas
+				presetParams := make(map[string]string)
+				for paramName := range originalTool.Parameters.Properties {
+					if _, exists := tool.Parameters.Properties[paramName]; !exists {
+						// Parameter was preset - find its value
+						for _, toolsetName := range a.modelConfig.Toolsets {
+							if toolset, ok := a.toolsets[toolsetName]; ok {
+								if serverConfig, ok := toolset[serverName]; ok {
+									if toolConfig, ok := serverConfig.AllowedTools[toolName]; ok {
+										if value, ok := toolConfig.PresetParameters[paramName]; ok {
+											presetParams[paramName] = value
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+
+				// Merge preset parameters with provided arguments
+				mergedArgs := make(map[string]interface{})
+				for k, v := range presetParams {
+					mergedArgs[k] = v
+				}
+				for k, v := range providedArgs {
+					mergedArgs[k] = v
+				}
+
+				// Validate against tool schema
+				if err := validateArguments(toolCall.Arguments, tool); err != nil {
+					return "", fmt.Errorf("argument validation failed: %w", err)
+				}
+
+				// Execute the function
+				result, err := a.mcpClient.CallTool(ctx, serverName, toolName, mergedArgs)
+				if err != nil {
+					return "", fmt.Errorf("function execution failed: %w", err)
+				}
+
+				resultBytes, err := json.Marshal(result)
+				if err != nil {
+					return "", fmt.Errorf("failed to format result: %w", err)
+				}
+
+				return string(resultBytes), nil
+			}
+		}
 	}
 
-	if err := validateArguments(toolCall.Arguments, tool); err != nil {
-		return "", fmt.Errorf("argument validation failed: %w", err)
-	}
-
-	// Parse arguments into interface{}
-	var args interface{}
-	if err := json.Unmarshal(toolCall.Arguments, &args); err != nil {
-		return "", fmt.Errorf("failed to parse arguments: %w", err)
-	}
-
-	// Execute the function through MCP client
-	result, err := a.mcpClient.CallTool(ctx, toolCall.Name, args)
-	if err != nil {
-		return "", fmt.Errorf("function execution failed: %w", err)
-	}
-
-	// Convert result to string
-	resultBytes, err := json.Marshal(result)
-	if err != nil {
-		return "", fmt.Errorf("failed to format result: %w", err)
-	}
-
-	return string(resultBytes), nil
+	return "", fmt.Errorf("tool %s not found", toolCall.Name)
 }
 
 // SendMessage sends a message through the Agent, handling any function calls
@@ -188,16 +323,11 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		a.modelConfig,
 		opts.Content,
 		messages,
-		a.tools,
+		flattenTools(a.tools),
 		opts.StreamHandler,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
-	}
-
-	if opts.StreamHandler != nil {
-		_ = opts.StreamHandler.HandleMessageDone()
-		opts.StreamHandler.Reset()
 	}
 
 	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
@@ -231,18 +361,46 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		result string
 		err    error
 	}
-	resultChan := make(chan toolResult, len(aiResponse.ToolCalls))
 
-	// Launch concurrent execution of all tool calls
+	// Check if any tools require approval
+	var needsApproval *llm.ToolCall
+	toolsForAutoExec := make([]llm.ToolCall, 0)
+
 	for _, call := range aiResponse.ToolCalls {
-		go func(tc llm.ToolCall) {
-			if a.cfg.AutoApproveFunctions {
-				result, err := a.executeFunction(ctx, tc, a.tools)
-				resultChan <- toolResult{
-					call:   tc,
-					result: result,
-					err:    err,
+		// Find tool approval setting
+		for serverName, serverTools := range a.tools {
+			for toolName, tool := range serverTools {
+				if fmt.Sprintf("%s__%s", serverName, toolName) == call.Name {
+					if tool.RequireApproval {
+						if needsApproval == nil {
+							needsApproval = &call
+						}
+					} else {
+						toolsForAutoExec = append(toolsForAutoExec, call)
+					}
 				}
+			}
+		}
+	}
+
+	// If any tool needs approval, return first one
+	if needsApproval != nil {
+		return aiMsg, &PendingFunctionCallError{
+			Message:  aiMsg,
+			ToolCall: *needsApproval,
+		}
+	}
+
+	// Execute auto-approved tools concurrently
+	resultChan := make(chan toolResult, len(toolsForAutoExec))
+
+	for _, call := range toolsForAutoExec {
+		go func(tc llm.ToolCall) {
+			result, err := a.executeFunction(ctx, tc, a.tools)
+			resultChan <- toolResult{
+				call:   tc,
+				result: result,
+				err:    err,
 			}
 		}(call)
 	}
@@ -270,14 +428,6 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		// Add separator between results unless it's the last one
 		if i < len(aiResponse.ToolCalls)-1 {
 			combinedResults.WriteString("\n")
-		}
-	}
-
-	// If auto-approve is disabled, return for manual approval with first tool call
-	if !a.cfg.AutoApproveFunctions {
-		return aiMsg, &PendingFunctionCallError{
-			Message:  aiMsg,
-			ToolCall: aiResponse.ToolCalls[0],
 		}
 	}
 
