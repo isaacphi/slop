@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/isaacphi/slop/refs/heads/main/internal/config/schema.json
 
-modelPresets:
+presets:
   gemini:
     provider: googleai
     name: gemini-1.5-flash

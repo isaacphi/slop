@@ -52,23 +52,23 @@ var sendCmd = &cobra.Command{
 		defer mcpClient.Shutdown()
 
 		// Get model configuration
-		modelCfg := cfg.ModelPresets[cfg.ActiveModel]
+		preset := cfg.Presets[cfg.ActiveModel]
 		if modelFlag != "" {
 			var ok bool
-			modelCfg, ok = cfg.ModelPresets[modelFlag]
+			preset, ok = cfg.Presets[modelFlag]
 			if !ok {
 				return fmt.Errorf("model %s not found in configuration", modelFlag)
 			}
 		}
 		if maxTokensFlag > 0 {
-			modelCfg.MaxTokens = maxTokensFlag
+			preset.MaxTokens = maxTokensFlag
 		}
 		if temperatureFlag > 0 {
-			modelCfg.Temperature = temperatureFlag
+			preset.Temperature = temperatureFlag
 		}
 
 		// Initialize Agent
-		agentService, err := agent.New(repo, mcpClient, modelCfg, cfg.Toolsets)
+		agentService, err := agent.New(repo, mcpClient, preset, cfg.Toolsets)
 		if err != nil {
 			return fmt.Errorf("could not initialize MCP agent: %w", err)
 		}

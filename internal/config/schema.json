@@ -3,22 +3,11 @@
   "$id": "https://github.com/isaacphi/slop/internal/config/config-schema",
   "$ref": "#/$defs/ConfigSchema",
   "$defs": {
-    "Agent": {
-      "properties": {
-        "autoApproveFunctions": {
-          "type": "boolean",
-          "description": "Automatically approve function calls",
-          "default": true
-        }
-      },
-      "additionalProperties": false,
-      "type": "object"
-    },
     "ConfigSchema": {
       "properties": {
-        "modelPresets": {
+        "presets": {
           "additionalProperties": {
-            "$ref": "#/$defs/ModelPreset"
+            "$ref": "#/$defs/Preset"
           },
           "type": "object",
           "description": "Available model configurations"
@@ -43,10 +32,6 @@
           },
           "type": "object",
           "description": "MCP server configurations"
-        },
-        "agent": {
-          "$ref": "#/$defs/Agent",
-          "description": "Agent behavior settings"
         },
         "log": {
           "$ref": "#/$defs/Log",
@@ -142,7 +127,7 @@
       "additionalProperties": false,
       "type": "object"
     },
-    "ModelPreset": {
+    "Preset": {
       "properties": {
         "provider": {
           "type": "string",
@@ -168,6 +153,10 @@
           },
           "type": "array",
           "description": "Toolsets to use for this model preset"
+        },
+        "systemPrompt": {
+          "type": "string",
+          "description": "Instructions to include in the system prompt for all messages sent using this preset"
         }
       },
       "additionalProperties": false,

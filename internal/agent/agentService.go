@@ -16,11 +16,11 @@ import (
 
 // "Agent" manages the interaction between the repository, llm, and function calls
 type Agent struct {
-	repository  repository.MessageRepository
-	mcpClient   *mcp.Client
-	modelConfig config.ModelPreset
-	tools       map[string]map[string]toolWithApproval
-	toolsets    map[string]config.Toolset
+	repository repository.MessageRepository
+	mcpClient  *mcp.Client
+	preset     config.Preset
+	tools      map[string]map[string]toolWithApproval
+	toolsets   map[string]config.Toolset
 }
 
 type toolWithApproval struct {
@@ -37,20 +37,20 @@ type SendMessageOptions struct {
 }
 
 // New creates a new Agent with the given dependencies
-func New(repo repository.MessageRepository, mcpClient *mcp.Client, modelCfg config.ModelPreset, toolsets map[string]config.Toolset) (*Agent, error) {
+func New(repo repository.MessageRepository, mcpClient *mcp.Client, preset config.Preset, toolsets map[string]config.Toolset) (*Agent, error) {
 
-	tools, err := filterAndModifyTools(mcpClient.GetTools(), modelCfg.Toolsets, toolsets)
+	tools, err := filterAndModifyTools(mcpClient.GetTools(), preset.Toolsets, toolsets)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to process toolsets: %w", err)
 	}
 
 	return &Agent{
-		repository:  repo,
-		mcpClient:   mcpClient,
-		modelConfig: modelCfg,
-		tools:       tools,
-		toolsets:    toolsets,
+		repository: repo,
+		mcpClient:  mcpClient,
+		preset:     preset,
+		tools:      tools,
+		toolsets:   toolsets,
 	}, nil
 }
 
@@ -362,7 +362,7 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 				for paramName := range originalTool.Parameters.Properties {
 					if _, exists := tool.Parameters.Properties[paramName]; !exists {
 						// Parameter was preset - find its value
-						for _, toolsetName := range a.modelConfig.Toolsets {
+						for _, toolsetName := range a.preset.Toolsets {
 							if toolset, ok := a.toolsets[toolsetName]; ok {
 								if serverConfig, ok := toolset[serverName]; ok {
 									if toolConfig, ok := serverConfig.AllowedTools[toolName]; ok {
@@ -409,6 +409,22 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 	return "", fmt.Errorf("tool %s not found", toolCall.Name)
 }
 
+func (a *Agent) buildSystemMessage() (*domain.Message, error) {
+	var promptBuilder strings.Builder
+	if a.preset.SystemPrompt != "" {
+		promptBuilder.WriteString(a.preset.SystemPrompt)
+	}
+
+	prompt := promptBuilder.String()
+	if prompt != "" {
+		return &domain.Message{
+			Role:    domain.RoleSystem,
+			Content: prompt,
+		}, nil
+	}
+	return nil, nil
+}
+
 // SendMessage sends a message through the Agent, handling any function calls
 func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
 	// Verify thread exists
@@ -429,8 +445,14 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		}
 	}
 
+	// Build system message
+	systemMessage, err := a.buildSystemMessage()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build system message: %w", err)
+	}
+
 	// Get conversation history for context
-	messages, err := a.repository.GetMessages(ctx, thread.ID, opts.ParentID, false)
+	history, err := a.repository.GetMessages(ctx, thread.ID, opts.ParentID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
@@ -452,13 +474,17 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 	}
 
 	// Get AI response
+	generateOptions := llm.GenerateContentOptions{
+		Preset:        a.preset,
+		Content:       opts.Content,
+		SystemMessage: systemMessage,
+		History:       history,
+		Tools:         flattenTools(a.tools),
+		StreamHandler: opts.StreamHandler,
+	}
 	aiResponse, err := llm.GenerateContent(
 		ctx,
-		a.modelConfig,
-		opts.Content,
-		messages,
-		flattenTools(a.tools),
-		opts.StreamHandler,
+		generateOptions,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate AI response: %w", err)
@@ -476,8 +502,8 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		Role:      domain.RoleAssistant,
 		Content:   aiResponse.TextResponse,
 		ToolCalls: string(toolCallsString),
-		ModelName: a.modelConfig.Name,
-		Provider:  a.modelConfig.Provider,
+		ModelName: a.preset.Name,
+		Provider:  a.preset.Provider,
 	}
 
 	if err := a.repository.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {

@@ -12,25 +12,29 @@ import (
 // InternalService is used for LLM calls within the application itself
 // such as for summarizing threads
 type InternalService struct {
-	modelCfg config.ModelPreset
-	cfg      config.Internal
+	preset config.Preset
+	cfg    config.Internal
 }
 
 func NewInternalService(cfg *config.ConfigSchema) (*InternalService, error) {
-	modelCfg, ok := cfg.ModelPresets[cfg.Internal.Model]
+	preset, ok := cfg.Presets[cfg.Internal.Model]
 	if !ok {
 		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
 	}
 
 	return &InternalService{
-		modelCfg: modelCfg,
-		cfg:      cfg.Internal,
+		preset: preset,
+		cfg:    cfg.Internal,
 	}, nil
 }
 
 // GenerateOneOff makes a single call to the LLM without storing any context or history
 func (s *InternalService) GenerateOneOff(ctx context.Context, prompt string) (string, error) {
-	response, err := llm.GenerateContent(ctx, s.modelCfg, prompt, []domain.Message{}, nil, nil)
+	opts := llm.GenerateContentOptions{
+		Preset:  s.preset,
+		Content: prompt,
+	}
+	response, err := llm.GenerateContent(ctx, opts)
 	if err != nil {
 		return "", fmt.Errorf("internal message failed: %w", err)
 	}

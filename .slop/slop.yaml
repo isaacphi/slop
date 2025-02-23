@@ -7,9 +7,10 @@ mcpServers:
     args:
       - "@modelcontextprotocol/server-filesystem"
       - "/Users/phil/dev/"
-modelPresets:
+presets:
   claude:
     temperature: 1
+    systemPrompt: Reply in French
     toolsets:
       - mytools
 toolsets:

@@ -41,39 +41,43 @@ type StreamHandler interface {
 	HandleFunctionCallChunk(chunk FunctionCallChunk) error
 }
 
-func createLLMClient(modelCfg config.ModelPreset) (llms.Model, error) {
+func createLLMClient(preset config.Preset) (llms.Model, error) {
 	var llm llms.Model
 	var err error
 
-	switch modelCfg.Provider {
+	switch preset.Provider {
 	case "openai":
 		llm, err = openai.New(
-			openai.WithModel(modelCfg.Name),
+			openai.WithModel(preset.Name),
 		)
 	case "anthropic":
 		llm, err = anthropic.New(
-			anthropic.WithModel(modelCfg.Name),
+			anthropic.WithModel(preset.Name),
 		)
 	case "googleai":
 		genaiKey := os.Getenv("GEMINI_API_KEY")
 		ctx := context.Background()
 		llm, err = googleai.New(
 			ctx,
-			googleai.WithDefaultModel(modelCfg.Name),
+			googleai.WithDefaultModel(preset.Name),
 			googleai.WithAPIKey(genaiKey),
 		)
 	default:
-		return nil, fmt.Errorf("unsupported provider: %s", modelCfg.Provider)
+		return nil, fmt.Errorf("unsupported provider: %s", preset.Provider)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create %s client: %w", modelCfg.Provider, err)
+		return nil, fmt.Errorf("failed to create %s client: %w", preset.Provider, err)
 	}
 
 	return llm, nil
 }
 
-func buildMessageHistory(messages []domain.Message) []llms.MessageContent {
+func buildMessageHistory(systemMessage *domain.Message, messages []domain.Message) []llms.MessageContent {
 	var history []llms.MessageContent
+	if systemMessage != nil {
+		history = append(history, llms.TextParts(llms.ChatMessageTypeSystem, systemMessage.Content))
+	}
+
 	for _, msg := range messages {
 		var role llms.ChatMessageType
 		if msg.Role == domain.RoleAssistant {
@@ -151,23 +155,28 @@ func convertProperty(prop domain.Property) map[string]any {
 	return result
 }
 
+type GenerateContentOptions struct {
+	Preset        config.Preset
+	Content       string
+	SystemMessage *domain.Message
+	History       []domain.Message
+	Tools         map[string]domain.Tool
+	StreamHandler StreamHandler
+}
+
 // GenerateContent generates content using the specified model configuration
 func GenerateContent(
 	ctx context.Context,
-	modelCfg config.ModelPreset,
-	content string,
-	history []domain.Message,
-	tools map[string]domain.Tool,
-	streamHandler StreamHandler,
+	opts GenerateContentOptions,
 ) (MessageResponse, error) {
-	llmClient, err := createLLMClient(modelCfg)
+	llmClient, err := createLLMClient(opts.Preset)
 	if err != nil {
 		return MessageResponse{}, fmt.Errorf("failed to create LLM client: %w", err)
 	}
 
 	var streamCallback func(ctx context.Context, chunk []byte) error
 
-	if streamHandler != nil {
+	if opts.StreamHandler != nil {
 		// Closure to track streaming state
 		var currentFunctionId string
 
@@ -186,42 +195,45 @@ func GenerateContent(
 				functionName := fcall[0].Function.Name
 				functionId := fcall[0].Id
 				if functionId != nil && currentFunctionId != *functionId {
-					if err := streamHandler.HandleFunctionCallStart(*functionId, functionName); err != nil {
+					if err := opts.StreamHandler.HandleFunctionCallStart(*functionId, functionName); err != nil {
 						return err
 					}
 					currentFunctionId = *functionId
 				}
-				return streamHandler.HandleFunctionCallChunk(fcall[0].Function)
+				return opts.StreamHandler.HandleFunctionCallChunk(fcall[0].Function)
 			}
 			// Regular text chunk
-			return streamHandler.HandleTextChunk(chunk)
+			return opts.StreamHandler.HandleTextChunk(chunk)
 		}
 	}
 
-	opts := []llms.CallOption{
-		llms.WithTemperature(modelCfg.Temperature),
-		llms.WithMaxTokens(modelCfg.MaxTokens),
+	callOptions := []llms.CallOption{
+		llms.WithTemperature(opts.Preset.Temperature),
+		llms.WithMaxTokens(opts.Preset.MaxTokens),
 	}
 
-	langchainTools := getTools(tools)
+	langchainTools := getTools(opts.Tools)
 	if len(langchainTools) > 0 {
-		opts = append(opts, llms.WithTools(langchainTools))
+		callOptions = append(callOptions, llms.WithTools(langchainTools))
 	}
 
-	if streamHandler != nil {
-		opts = append(opts, llms.WithStreamingFunc(streamCallback))
+	if opts.StreamHandler != nil {
+		callOptions = append(callOptions, llms.WithStreamingFunc(streamCallback))
 	}
 
-	msgs := buildMessageHistory(history)
-	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, content))
+	if opts.SystemMessage != nil && opts.SystemMessage.Role != domain.RoleSystem {
+		return MessageResponse{}, fmt.Errorf("system message is of type %v", opts.SystemMessage.Role)
+	}
+	msgs := buildMessageHistory(opts.SystemMessage, opts.History)
+	msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, opts.Content))
 
-	resp, err := llmClient.GenerateContent(ctx, msgs, opts...)
+	resp, err := llmClient.GenerateContent(ctx, msgs, callOptions...)
 	if err != nil {
 		return MessageResponse{}, fmt.Errorf("streaming message failed: %w", err)
 	}
 
-	if streamHandler != nil {
-		streamHandler.HandleMessageDone()
+	if opts.StreamHandler != nil {
+		opts.StreamHandler.HandleMessageDone()
 	}
 
 	if len(resp.Choices) == 0 {
