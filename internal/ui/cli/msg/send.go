@@ -13,6 +13,7 @@ import (
 	"github.com/isaacphi/slop/internal/agent"
 	"github.com/isaacphi/slop/internal/appState"
 	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/events"
 	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/repository/sqlite"
@@ -186,6 +187,105 @@ var sendCmd = &cobra.Command{
 }
 
 func sendMessage(ctx context.Context, agentService *agent.Agent, opts agent.SendMessageOptions) error {
+	stream := agentService.SendMessageStream(ctx, opts)
+
+	var pendingMessage *domain.Message
+	var pendingToolCallsList []llm.ToolCall
+
+	// Process events from the stream
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println("\nRequest cancelled")
+			return ctx.Err()
+
+		case event, ok := <-stream.Events:
+			if !ok {
+				// Stream closed without any pending tool calls
+				fmt.Println()
+				return nil
+			}
+
+			switch e := event.(type) {
+			case *llm.TextEvent:
+				fmt.Print(e.Content)
+
+			case *llm.ToolCallEvent:
+				// For the CLI, we might want to indicate that a tool call is happening
+				fmt.Printf("\n[Tool call: %s]\n", e.Name)
+
+			case *llm.MessageCompleteEvent:
+				// The message is complete with all metadata
+				// This is where we'd handle any post-message processing if needed
+
+			case *agent.ToolApprovalEvent:
+				pendingMessage = e.Message
+				pendingToolCallsList = e.ToolCalls
+
+				// Handle tool approvals right when we get the event
+				return handleToolApproval(ctx, agentService, pendingMessage, pendingToolCallsList)
+
+			case *agent.ToolResultEvent:
+				fmt.Printf("\nTool %s result: %s\n", e.Name, e.Result)
+
+			case *agent.NewMessageEvent:
+				// Update thread state if needed
+
+			case *events.ErrorEvent:
+				return e.Error
+			}
+
+		case <-stream.Done:
+			// Stream is done, no pending tool calls to handle
+			fmt.Println()
+			return nil
+		}
+	}
+}
+
+// Helper function to handle tool approval
+func handleToolApproval(ctx context.Context, agentService *agent.Agent, message *domain.Message, toolCalls []llm.ToolCall) error {
+	// Print tool calls details
+	fmt.Printf("\nPending tool calls:\n")
+	for _, call := range toolCalls {
+		fmt.Printf("\nName: %s\nArguments: %s\n", call.Name, string(call.Arguments))
+	}
+
+	// Prompt for approval
+	fmt.Print("\nApprove tool execution? [y/N] ")
+	reader := bufio.NewReader(os.Stdin)
+	response, err := reader.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("failed to read approval: %w", err)
+	}
+
+	response = strings.TrimSpace(strings.ToLower(response))
+	if response == "y" || response == "yes" {
+		fmt.Println()
+		// Execute tools using the existing ApproveAndExecuteTools method
+		_, err := agentService.ApproveAndExecuteTools(ctx, message.ID, agent.SendMessageOptions{
+			// Pass the stream handler if you want to stream the tool execution result
+		})
+		return err
+	} else {
+		// Optional rejection reason
+		fmt.Print("Enter rejection reason (optional, press Enter to skip): ")
+		reason, err := reader.ReadString('\n')
+		fmt.Println()
+
+		if err != nil {
+			return fmt.Errorf("failed to read reason: %w", err)
+		}
+		reason = strings.TrimSpace(reason)
+
+		// Use DenyFunctionCall for rejection
+		_, err = agentService.DenyFunctionCall(ctx, message.ThreadID, message.ID, reason)
+		return err
+	}
+}
+
+// TODO: remove
+func sendMessageOld(ctx context.Context, agentService *agent.Agent, opts agent.SendMessageOptions) error {
 	if !noStreamFlag {
 		opts.StreamHandler = &CLIStreamHandler{originalCallback: func(chunk []byte) error {
 			fmt.Print(string(chunk))

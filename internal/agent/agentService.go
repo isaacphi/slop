@@ -174,11 +174,21 @@ func (a *Agent) ExecuteTools(ctx context.Context, toolCalls []llm.ToolCall) (str
 	// Execute tools concurrently
 	for _, call := range toolCalls {
 		go func(tc llm.ToolCall) {
-			result, err := a.executeFunction(ctx, tc, a.tools)
-			resultChan <- toolResult{
-				call:   tc,
-				result: result,
-				err:    err,
+			select {
+			case <-ctx.Done():
+				resultChan <- toolResult{
+					call:   tc,
+					result: "",
+					err:    ctx.Err(),
+				}
+				return
+			default:
+				result, err := a.executeFunction(ctx, tc, a.tools)
+				resultChan <- toolResult{
+					call:   tc,
+					result: result,
+					err:    err,
+				}
 			}
 		}(call)
 	}
@@ -188,24 +198,27 @@ func (a *Agent) ExecuteTools(ctx context.Context, toolCalls []llm.ToolCall) (str
 	combinedResults.WriteString("Tool call results:\n\n")
 
 	for i := 0; i < len(toolCalls); i++ {
-		res := <-resultChan
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case res := <-resultChan:
+			// Format the tool call header
+			fmt.Fprintf(&combinedResults, "Name: %s\n", res.call.Name)
+			fmt.Fprintf(&combinedResults, "ID: %s\n", res.call.ID)
+			fmt.Fprintf(&combinedResults, "Arguments: %s\n", string(res.call.Arguments))
+			fmt.Fprint(&combinedResults, "Result:\n")
 
-		// Format the tool call header
-		fmt.Fprintf(&combinedResults, "Name: %s\n", res.call.Name)
-		fmt.Fprintf(&combinedResults, "ID: %s\n", res.call.ID)
-		fmt.Fprintf(&combinedResults, "Arguments: %s\n", string(res.call.Arguments))
-		fmt.Fprint(&combinedResults, "Result:\n")
+			// Add result or error
+			if res.err != nil {
+				fmt.Fprintf(&combinedResults, "Error: %v\n", res.err)
+			} else {
+				fmt.Fprintf(&combinedResults, "%s\n", res.result)
+			}
 
-		// Add result or error
-		if res.err != nil {
-			fmt.Fprintf(&combinedResults, "Error: %v\n", res.err)
-		} else {
-			fmt.Fprintf(&combinedResults, "%s\n", res.result)
-		}
-
-		// Add separator between results unless it's the last one
-		if i < len(toolCalls)-1 {
-			combinedResults.WriteString("\n")
+			// Add separator between results unless it's the last one
+			if i < len(toolCalls)-1 {
+				combinedResults.WriteString("\n")
+			}
 		}
 	}
 

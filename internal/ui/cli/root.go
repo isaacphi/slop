@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -27,6 +28,14 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
+	// TODO: is this necessary
+	// Add a context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Set up the root command to use this context
+	rootCmd.SetContext(ctx)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

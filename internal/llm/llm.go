@@ -8,6 +8,7 @@ import (
 
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
+	"github.com/isaacphi/slop/internal/events"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/anthropic"
 	"github.com/tmc/langchaingo/llms/googleai"
@@ -164,6 +165,123 @@ type GenerateContentOptions struct {
 	StreamHandler StreamHandler
 }
 
+// GenerateContentStream returns a stream of events from the LLM
+func GenerateContentStream(
+	ctx context.Context,
+	opts GenerateContentOptions,
+) LLMStream {
+	eventsChan := make(chan events.Event)
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		defer close(eventsChan)
+
+		// Check for context cancellation
+		select {
+		case <-ctx.Done():
+			eventsChan <- &events.ErrorEvent{Error: ctx.Err()}
+			return
+		default:
+		}
+
+		llmClient, err := createLLMClient(opts.Preset)
+		if err != nil {
+			eventsChan <- &events.ErrorEvent{Error: fmt.Errorf("failed to create LLM client: %w", err)}
+			return
+		}
+
+		// Closure to track streaming state
+		var currentFunctionId string
+
+		streamCallback := func(ctx context.Context, chunk []byte) error {
+			// Check for context cancellation
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			// Try to parse as function call first
+			var fcall []struct {
+				Function FunctionCallChunk `json:"function"`
+				Id       *string           `json:"id,omitempty"`
+			}
+			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
+				// This is a function call chunk
+				functionName := fcall[0].Function.Name
+				functionId := fcall[0].Id
+				if functionId != nil && currentFunctionId != *functionId {
+					currentFunctionId = *functionId
+				}
+
+				// Emit tool call event
+				eventsChan <- &ToolCallEvent{
+					ToolCallID:   currentFunctionId,
+					Name:         functionName,
+					ArgumentName: "", // TODO: Parse argument name
+					Chunk:        fcall[0].Function.ArgumentsJson,
+				}
+				return nil
+			}
+
+			// Regular text chunk
+			eventsChan <- &TextEvent{Content: string(chunk)}
+			return nil
+		}
+
+		callOptions := []llms.CallOption{
+			llms.WithTemperature(opts.Preset.Temperature),
+			llms.WithMaxTokens(opts.Preset.MaxTokens),
+			llms.WithStreamingFunc(streamCallback),
+		}
+
+		langchainTools := getTools(opts.Tools)
+		if len(langchainTools) > 0 {
+			callOptions = append(callOptions, llms.WithTools(langchainTools))
+		}
+
+		if opts.SystemMessage != nil && opts.SystemMessage.Role != domain.RoleSystem {
+			eventsChan <- &events.ErrorEvent{Error: fmt.Errorf("system message is of type %v", opts.SystemMessage.Role)}
+			return
+		}
+
+		msgs := buildMessageHistory(opts.SystemMessage, opts.History)
+		msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, opts.Content))
+
+		resp, err := llmClient.GenerateContent(ctx, msgs, callOptions...)
+		if err != nil {
+			eventsChan <- &events.ErrorEvent{Error: fmt.Errorf("streaming message failed: %w", err)}
+			return
+		}
+
+		// Send complete response with tool calls
+		if len(resp.Choices) > 0 {
+			toolCalls := make([]ToolCall, 0)
+			for _, choice := range resp.Choices {
+				if len(choice.ToolCalls) > 0 {
+					for _, tc := range choice.ToolCalls {
+						toolCalls = append(toolCalls, ToolCall{
+							ID:        tc.ID,
+							Name:      tc.FunctionCall.Name,
+							Arguments: json.RawMessage(tc.FunctionCall.Arguments),
+						})
+					}
+				}
+			}
+
+			// TODO: can there be text content in other choices? Might need to combine them
+			eventsChan <- &MessageCompleteEvent{
+				Content:   resp.Choices[0].Content,
+				ToolCalls: toolCalls,
+			}
+		}
+	}()
+
+	return LLMStream{Events: eventsChan, Done: done}
+}
+
+// TODO: Remove
 // GenerateContent generates content using the specified model configuration
 func GenerateContent(
 	ctx context.Context,
