@@ -68,7 +68,7 @@ var sendCmd = &cobra.Command{
 		}
 
 		// Initialize Agent
-		agentService, err := agent.New(repo, mcpClient, preset, cfg.Toolsets)
+		agentService, err := agent.New(repo, mcpClient, preset, cfg.Toolsets, cfg.Prompts)
 		if err != nil {
 			return fmt.Errorf("could not initialize MCP agent: %w", err)
 		}

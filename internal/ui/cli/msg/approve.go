@@ -32,7 +32,7 @@ var approveCmd = &cobra.Command{
 		defer mcpClient.Shutdown()
 
 		preset := cfg.Presets[cfg.ActiveModel]
-		agentService, err := agent.New(repo, mcpClient, preset, cfg.Toolsets)
+		agentService, err := agent.New(repo, mcpClient, preset, cfg.Toolsets, cfg.Prompts)
 		if err != nil {
 			return fmt.Errorf("could not initialize agent: %w", err)
 		}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/google/uuid"
@@ -19,8 +20,9 @@ type Agent struct {
 	repository repository.MessageRepository
 	mcpClient  *mcp.Client
 	preset     config.Preset
-	tools      map[string]map[string]toolWithApproval
+	tools      map[string]map[string]toolWithApproval // MCPServer -> Tool -> Tool Configuration
 	toolsets   map[string]config.Toolset
+	prompts    map[string]config.Prompt
 }
 
 type toolWithApproval struct {
@@ -37,8 +39,13 @@ type SendMessageOptions struct {
 }
 
 // New creates a new Agent with the given dependencies
-func New(repo repository.MessageRepository, mcpClient *mcp.Client, preset config.Preset, toolsets map[string]config.Toolset) (*Agent, error) {
-
+func New(
+	repo repository.MessageRepository,
+	mcpClient *mcp.Client,
+	preset config.Preset,
+	toolsets map[string]config.Toolset,
+	prompts map[string]config.Prompt,
+) (*Agent, error) {
 	tools, err := filterAndModifyTools(mcpClient.GetTools(), preset.Toolsets, toolsets)
 
 	if err != nil {
@@ -51,6 +58,7 @@ func New(repo repository.MessageRepository, mcpClient *mcp.Client, preset config
 		preset:     preset,
 		tools:      tools,
 		toolsets:   toolsets,
+		prompts:    prompts,
 	}, nil
 }
 
@@ -70,7 +78,7 @@ func filterAndModifyTools(allTools map[string]map[string]domain.Tool, modelTools
 	for _, toolsetName := range modelToolsets {
 		toolset := toolsets[toolsetName]
 
-		for serverName, serverConfig := range toolset {
+		for serverName, serverConfig := range toolset.Servers {
 			serverTools, exists := allTools[serverName]
 			if !exists {
 				return nil, fmt.Errorf("server %q not found", serverName)
@@ -364,7 +372,7 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 						// Parameter was preset - find its value
 						for _, toolsetName := range a.preset.Toolsets {
 							if toolset, ok := a.toolsets[toolsetName]; ok {
-								if serverConfig, ok := toolset[serverName]; ok {
+								if serverConfig, ok := toolset.Servers[serverName]; ok {
 									if toolConfig, ok := serverConfig.AllowedTools[toolName]; ok {
 										if value, ok := toolConfig.PresetParameters[paramName]; ok {
 											presetParams[paramName] = value
@@ -409,28 +417,89 @@ func (a *Agent) executeFunction(ctx context.Context, toolCall llm.ToolCall, tool
 	return "", fmt.Errorf("tool %s not found", toolCall.Name)
 }
 
-func (a *Agent) buildSystemMessage() (*domain.Message, error) {
-	var promptBuilder strings.Builder
-	if a.preset.SystemPrompt != "" {
-		promptBuilder.WriteString(a.preset.SystemPrompt)
+type systemMessageOpts struct {
+	messageContent string
+	history        []domain.Message
+}
+
+func (a *Agent) buildSystemMessage(opts systemMessageOpts) (*domain.Message, error) {
+	var parts []string
+
+	// 1. Start with preset's system message if it exists
+	if a.preset.SystemMessage != "" {
+		parts = append(parts, a.preset.SystemMessage)
 	}
 
-	prompt := promptBuilder.String()
-	if prompt != "" {
-		return &domain.Message{
-			Role:    domain.RoleSystem,
-			Content: prompt,
-		}, nil
+	// 2. Add explicitly included prompts from preset
+	for _, promptName := range a.preset.IncludePrompts {
+		if prompt, ok := a.prompts[promptName]; ok {
+			parts = append(parts, prompt.Content)
+		} else {
+			return nil, fmt.Errorf("could not find prompt %s when building system instructions", promptName)
+		}
 	}
-	return nil, nil
+
+	// 3. Add auto-included prompts and regex-triggered prompts
+	messageAndHistory := opts.messageContent
+	for _, msg := range opts.history {
+		messageAndHistory += "\n" + msg.Content
+	}
+
+	for promptName, prompt := range a.prompts {
+		// Check auto-include
+		if prompt.IncludeInSystemMessage {
+			parts = append(parts, prompt.Content)
+			continue
+		}
+
+		// Check regex trigger if one is set
+		if prompt.SystemMessageTrigger != "" {
+			matched, err := regexp.MatchString(prompt.SystemMessageTrigger, messageAndHistory)
+			if err != nil {
+				return nil, fmt.Errorf("failed to evaluate regex trigger for prompt %s: %w", promptName, err)
+			}
+			if matched {
+				parts = append(parts, prompt.Content)
+			}
+		}
+	}
+
+	// 4. Add system messages from active toolsets
+	for _, toolsetName := range a.preset.Toolsets {
+		if toolset, ok := a.toolsets[toolsetName]; ok && toolset.SystemMessage != "" {
+			parts = append(parts, toolset.SystemMessage)
+		}
+	}
+
+	// 5. Add system messages from MCP servers that have tools in use
+	for serverName := range a.tools {
+		if server, ok := a.mcpClient.Servers[serverName]; ok && server.SystemMessage != "" {
+			parts = append(parts, server.SystemMessage)
+		}
+	}
+
+	// Join all parts with double newlines
+	systemMessage := strings.Join(parts, "\n\n")
+
+	if systemMessage == "" {
+		return nil, nil
+	}
+
+	return &domain.Message{
+		Role:    domain.RoleSystem,
+		Content: systemMessage,
+	}, nil
 }
 
 // SendMessage sends a message through the Agent, handling any function calls
 func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
-	// Verify thread exists
+	// Validation
 	thread, err := a.repository.GetThread(ctx, opts.ThreadID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get thread: %w", err)
+	}
+	if opts.Role == domain.RoleAssistant {
+		return nil, fmt.Errorf("cannot send message with role Assistant")
 	}
 
 	// If no parent specified, get the most recent message in thread
@@ -445,20 +514,19 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 		}
 	}
 
-	// Build system message
-	systemMessage, err := a.buildSystemMessage()
-	if err != nil {
-		return nil, fmt.Errorf("failed to build system message: %w", err)
-	}
-
 	// Get conversation history for context
 	history, err := a.repository.GetMessages(ctx, thread.ID, opts.ParentID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation history: %w", err)
 	}
 
-	if opts.Role == domain.RoleAssistant {
-		return nil, fmt.Errorf("cannot send message with role Assistant")
+	// Build system message
+	systemMessage, err := a.buildSystemMessage(systemMessageOpts{
+		messageContent: opts.Content,
+		history:        history,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build system message: %w", err)
 	}
 
 	// Create message

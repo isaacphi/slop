@@ -17,7 +17,7 @@ import (
 
 // Client manages multiple MCP server connections
 type Client struct {
-	servers     map[string]config.MCPServer
+	Servers     map[string]config.MCPServer
 	clients     map[string]*mcp_golang.Client
 	commands    map[string]*exec.Cmd
 	tools       map[string]map[string]domain.Tool
@@ -28,7 +28,7 @@ type Client struct {
 // New creates a new MCP client manager
 func New(servers map[string]config.MCPServer) *Client {
 	return &Client{
-		servers:  servers,
+		Servers:  servers,
 		clients:  make(map[string]*mcp_golang.Client),
 		commands: make(map[string]*exec.Cmd),
 		tools:    make(map[string]map[string]domain.Tool),
@@ -44,10 +44,10 @@ func (c *Client) Initialize(ctx context.Context) error {
 	c.mu.Unlock()
 
 	var wg sync.WaitGroup
-	errorsChan := make(chan error, len(c.servers)) // Buffered channel to collect errors
+	errorsChan := make(chan error, len(c.Servers)) // Buffered channel to collect errors
 
 	// Start each server in parallel
-	for name, server := range c.servers {
+	for name, server := range c.Servers {
 		name, server := name, server // Create local variables for closure
 		wg.Add(1)
 		go func() {

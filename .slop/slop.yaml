@@ -3,6 +3,7 @@
 
 mcpServers:
   filesystem:
+    systemMessage: tell the user about the filesystem tools you have available
     command: npx
     args:
       - "@modelcontextprotocol/server-filesystem"
@@ -10,17 +11,22 @@ mcpServers:
 presets:
   claude:
     temperature: 1
-    systemPrompt: Reply in French
     toolsets:
       - mytools
+prompts:
+  french:
+    content: reply in french
+    includeInSystemMessage: false
 toolsets:
   mytools:
-    filesystem:
-      requireApproval: true
-      allowedTools:
-        read_file:
-          requireApproval: true
-        edit_file:
-          requireApproval: true
-        write_file:
-          requireApproval: true
+    systemMessage: from mytools
+    servers:
+      filesystem:
+        requireApproval: true
+        allowedTools:
+          read_file:
+            requireApproval: true
+          edit_file:
+            requireApproval: true
+          write_file:
+            requireApproval: true

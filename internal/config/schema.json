@@ -43,6 +43,12 @@
           },
           "type": "object",
           "description": "Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."
+        },
+        "prompts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Prompt"
+          },
+          "type": "object"
         }
       },
       "additionalProperties": false,
@@ -104,6 +110,10 @@
           },
           "type": "object",
           "description": "Environment variables for the MCP server"
+        },
+        "systemMessage": {
+          "type": "string",
+          "description": "System message to include when any of this server's tools are used"
         }
       },
       "additionalProperties": false,
@@ -154,9 +164,37 @@
           "type": "array",
           "description": "Toolsets to use for this model preset"
         },
-        "systemPrompt": {
+        "systemMessage": {
           "type": "string",
-          "description": "Instructions to include in the system prompt for all messages sent using this preset"
+          "description": "Base system message for all conversations using this preset"
+        },
+        "includePrompts": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Names of prompts to include in the system message",
+          "default": [
+            "false"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "Prompt": {
+      "properties": {
+        "content": {
+          "type": "string",
+          "description": "The text content of the prompt"
+        },
+        "includeInSystemMessage": {
+          "type": "boolean",
+          "description": "If true"
+        },
+        "systemMessageTrigger": {
+          "type": "string",
+          "description": "Regex pattern - if matched in user message or history"
         }
       },
       "additionalProperties": false,
@@ -181,9 +219,19 @@
       "type": "object"
     },
     "Toolset": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MCPServerToolConfig"
+      "properties": {
+        "servers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MCPServerToolConfig"
+          },
+          "type": "object"
+        },
+        "systemMessage": {
+          "type": "string",
+          "description": "System message to include when this toolset is used"
+        }
       },
+      "additionalProperties": false,
       "type": "object"
     }
   },
