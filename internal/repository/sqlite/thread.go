@@ -20,7 +20,7 @@ func (r *messageRepo) GetThread(ctx context.Context, id uuid.UUID) (*domain.Thre
 		Preload("Messages").
 		First(&thread, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("Conversation not found")
+			return nil, fmt.Errorf("conversation not found")
 		}
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (r *messageRepo) GetMostRecentThread(ctx context.Context) (*domain.Thread, 
 	var thread domain.Thread
 	if err := r.db.WithContext(ctx).Order("created_at DESC").First(&thread).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("Conversation not found")
+			return nil, fmt.Errorf("conversation not found")
 		}
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (r *messageRepo) GetThreadByPartialID(ctx context.Context, partialID string
 		Order("created_at DESC").
 		First(&thread).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("Conversation not found")
+			return nil, fmt.Errorf("conversation not found")
 		}
 		return nil, err
 	}

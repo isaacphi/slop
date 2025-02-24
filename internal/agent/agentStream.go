@@ -145,7 +145,7 @@ func (a *Agent) SendMessageStream(ctx context.Context, opts SendMessageOptions) 
 						toolCallsString, err := json.Marshal(toolCalls)
 						if err != nil {
 							eventsChan <- &events.ErrorEvent{
-								Error: fmt.Errorf("Failed to parse ToolCalls: %w", err),
+								Error: fmt.Errorf("failed to parse ToolCalls: %w", err),
 							}
 							return
 						}

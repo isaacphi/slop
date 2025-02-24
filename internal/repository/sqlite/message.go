@@ -23,7 +23,7 @@ func (r *messageRepo) GetMessage(ctx context.Context, messageID uuid.UUID) (*dom
 		Preload("Thread").
 		First(&msg, messageID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, fmt.Errorf("Message not found")
+			return nil, fmt.Errorf("message not found")
 		}
 		return nil, err
 	}

@@ -112,7 +112,7 @@ func (c *Client) startServer(ctx context.Context, name string, server config.MCP
 	// Initialize with client name and version
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
-		return fmt.Errorf("No build info available")
+		return fmt.Errorf("no build info available")
 	}
 	if _, err := client.Initialize(ctx, "slop", info.Main.Version); err != nil {
 		_ = cmd.Process.Kill()

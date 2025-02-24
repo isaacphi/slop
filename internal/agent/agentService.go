@@ -573,7 +573,7 @@ func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*doma
 
 	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to parse ToolCalls: %w", err)
+		return nil, fmt.Errorf("failed to parse ToolCalls: %w", err)
 	}
 
 	// Create AI message as a reply to the user message

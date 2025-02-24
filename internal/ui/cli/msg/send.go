@@ -3,7 +3,6 @@ package msg
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -282,98 +281,6 @@ func handleToolApproval(ctx context.Context, agentService *agent.Agent, message 
 		_, err = agentService.DenyFunctionCall(ctx, message.ThreadID, message.ID, reason)
 		return err
 	}
-}
-
-// TODO: remove
-func sendMessageOld(ctx context.Context, agentService *agent.Agent, opts agent.SendMessageOptions) error {
-	if !noStreamFlag {
-		opts.StreamHandler = &CLIStreamHandler{originalCallback: func(chunk []byte) error {
-			fmt.Print(string(chunk))
-			return nil
-		}}
-	}
-
-	errCh := make(chan error, 1)
-	var respMsg *domain.Message
-	pendingToolCalls := false
-
-	go func() {
-		resp, err := agentService.SendMessage(ctx, opts)
-		respMsg = resp
-		if err != nil {
-			if _, ok := err.(*agent.PendingFunctionCallError); ok {
-				// Don't send to error channel - we'll handle this case
-				pendingToolCalls = true
-				errCh <- nil
-				return
-			}
-			errCh <- err
-			return
-		}
-		if noStreamFlag {
-			fmt.Print(resp.Content)
-		}
-		errCh <- nil
-	}()
-
-	select {
-	case <-ctx.Done():
-		fmt.Println("\nRequest cancelled")
-		return ctx.Err()
-	case err := <-errCh:
-		if err != nil {
-			return fmt.Errorf("failed to send message: %w", err)
-		}
-	}
-
-	// Check if we have pending tool calls to handle
-	if pendingToolCalls && respMsg != nil && respMsg.ToolCalls != "" {
-		var toolCalls []llm.ToolCall
-		if err := json.Unmarshal([]byte(respMsg.ToolCalls), &toolCalls); err != nil {
-			return fmt.Errorf("failed to parse tool calls: %w", err)
-		}
-
-		// Print tool calls details
-		fmt.Printf("\nPending tool calls:\n")
-		for _, call := range toolCalls {
-			fmt.Printf("\nName: %s\nArguments: %s\n", call.Name, string(call.Arguments))
-		}
-
-		// Prompt for approval
-		fmt.Print("\nApprove tool execution? [y/N] ")
-		reader := bufio.NewReader(os.Stdin)
-		response, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("failed to read approval: %w", err)
-		}
-
-		response = strings.TrimSpace(strings.ToLower(response))
-		if response == "y" || response == "yes" {
-			fmt.Println()
-			// Execute tools
-			_, err := agentService.ApproveAndExecuteTools(ctx, respMsg.ID, agent.SendMessageOptions{
-				StreamHandler: opts.StreamHandler,
-			})
-			return err
-		} else {
-			// Optional rejection reason
-			fmt.Print("Enter rejection reason (optional, press Enter to skip): ")
-			reason, err := reader.ReadString('\n')
-			fmt.Println()
-
-			if err != nil {
-				return fmt.Errorf("failed to read reason: %w", err)
-			}
-			reason = strings.TrimSpace(reason)
-			_, err = agentService.RejectTools(ctx, respMsg.ID, reason, agent.SendMessageOptions{
-				StreamHandler: opts.StreamHandler,
-			})
-			return err
-		}
-	}
-
-	fmt.Println()
-	return nil
 }
 
 // Handles function call detection and formatting
