@@ -6,6 +6,10 @@ help:
 build:
   go build -o slop
 
+# Install slop locally
+install:
+  go install
+
 # Generate schema
 generate:
   go generate ./...
