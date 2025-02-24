@@ -191,12 +191,11 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 	}
 
 	// Additional custom validations
-	// TODO: rename to defaultModel
 	// TODO: also validate internal model
-	if schema.ActiveModel != "" {
+	if schema.DefaultPreset != "" {
 		found := false
 		for key := range schema.Presets {
-			if key == schema.ActiveModel {
+			if key == schema.DefaultPreset {
 				found = true
 				break
 			}
@@ -206,8 +205,8 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 			for key := range schema.Presets {
 				availableModels = append(availableModels, key)
 			}
-			return nil, fmt.Errorf("activeModel %q must be one of configured models: %v",
-				schema.ActiveModel, availableModels)
+			return nil, fmt.Errorf("defaultPreset %q must be one of configured models: %v",
+				schema.DefaultPreset, availableModels)
 		}
 	}
 	// TODO: validate toolsets

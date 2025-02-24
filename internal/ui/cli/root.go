@@ -6,6 +6,7 @@ import (
 
 	"github.com/isaacphi/slop/internal/appState"
 	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/ui/cli/chat"
 	configCmd "github.com/isaacphi/slop/internal/ui/cli/config"
 	"github.com/isaacphi/slop/internal/ui/cli/mcp"
 	"github.com/isaacphi/slop/internal/ui/cli/msg"
@@ -61,5 +62,6 @@ func init() {
 		msg.MsgCmd,
 		thread.ThreadCmd,
 		mcp.MCPCmd,
+		chat.ChatCmd,
 	)
 }

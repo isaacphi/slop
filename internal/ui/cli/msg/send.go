@@ -52,7 +52,7 @@ var sendCmd = &cobra.Command{
 		defer mcpClient.Shutdown()
 
 		// Get model configuration
-		preset := cfg.Presets[cfg.ActiveModel]
+		preset := cfg.Presets[cfg.DefaultPreset]
 		if modelFlag != "" {
 			var ok bool
 			preset, ok = cfg.Presets[modelFlag]

@@ -11,7 +11,7 @@ presets:
   claude:
     provider: anthropic
     name: claude-3-5-haiku-latest
-activeModel: claude
+defaultPreset: claude
 log:
   logFile: ""
   logLevel: INFO

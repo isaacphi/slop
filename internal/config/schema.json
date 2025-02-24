@@ -12,9 +12,9 @@
           "type": "object",
           "description": "Available model configurations"
         },
-        "activeModel": {
+        "defaultPreset": {
           "type": "string",
-          "description": "Currently selected model preset",
+          "description": "Default preset for new chats",
           "default": "claude"
         },
         "dbPath": {

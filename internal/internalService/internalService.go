@@ -19,7 +19,7 @@ type InternalService struct {
 func NewInternalService(cfg *config.ConfigSchema) (*InternalService, error) {
 	preset, ok := cfg.Presets[cfg.Internal.Model]
 	if !ok {
-		return nil, fmt.Errorf("model %s not found in configuration", cfg.ActiveModel)
+		return nil, fmt.Errorf("model %s not found in configuration", cfg.DefaultPreset)
 	}
 
 	return &InternalService{

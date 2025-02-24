@@ -7,14 +7,14 @@ package config
 
 // ConfigSchema is the root configuration object
 type ConfigSchema struct {
-	Presets     map[string]Preset    `mapstructure:"presets" json:"presets" jsonschema:"description=Available model configurations"`
-	ActiveModel string               `mapstructure:"activeModel" json:"activeModel" jsonschema:"description=Currently selected model preset,default=claude"`
-	DBPath      string               `mapstructure:"dbPath" json:"dbPath" jsonschema:"description=Path to the database file,default=.slop/slop.db"`
-	Internal    Internal             `mapstructure:"internal" json:"internal" jsonschema:"description=Internal configuration settings"`
-	MCPServers  map[string]MCPServer `mapstructure:"mcpServers" json:"mcpServers" jsonschema:"description=MCP server configurations"`
-	Log         Log                  `mapstructure:"log" json:"log" jsonschema:"description=Logging configuration"`
-	Toolsets    map[string]Toolset   `mapstructure:"toolsets" json:"toolsets" jsonschema:"description=Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."`
-	Prompts     map[string]Prompt    `mapstructure:"prompts" json:"prompts" jsonschema:"Reusable prompt configuration"`
+	Presets       map[string]Preset    `mapstructure:"presets" json:"presets" jsonschema:"description=Available model configurations"`
+	DefaultPreset string               `mapstructure:"defaultPreset" json:"defaultPreset" jsonschema:"description=Default preset for new chats,default=claude"`
+	DBPath        string               `mapstructure:"dbPath" json:"dbPath" jsonschema:"description=Path to the database file,default=.slop/slop.db"`
+	Internal      Internal             `mapstructure:"internal" json:"internal" jsonschema:"description=Internal configuration settings"`
+	MCPServers    map[string]MCPServer `mapstructure:"mcpServers" json:"mcpServers" jsonschema:"description=MCP server configurations"`
+	Log           Log                  `mapstructure:"log" json:"log" jsonschema:"description=Logging configuration"`
+	Toolsets      map[string]Toolset   `mapstructure:"toolsets" json:"toolsets" jsonschema:"description=Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."`
+	Prompts       map[string]Prompt    `mapstructure:"prompts" json:"prompts" jsonschema:"Reusable prompt configuration"`
 
 	// Internal fields for printing
 	sources  map[string]string
