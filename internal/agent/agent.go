@@ -1,16 +1,12 @@
 package agent
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/domain"
-	"github.com/isaacphi/slop/internal/llm"
 	"github.com/isaacphi/slop/internal/mcp"
 	"github.com/isaacphi/slop/internal/repository"
 )
@@ -121,143 +117,4 @@ func (a *Agent) buildSystemMessage(opts systemMessageOpts) (*domain.Message, err
 		Role:    domain.RoleSystem,
 		Content: systemMessage,
 	}, nil
-}
-
-type SendMessageOptions struct {
-	ThreadID      uuid.UUID
-	ParentID      *uuid.UUID
-	Content       string
-	StreamHandler llm.StreamHandler
-	Role          domain.Role
-}
-
-// SendMessage sends a message through the Agent, handling any function calls
-func (a *Agent) SendMessage(ctx context.Context, opts SendMessageOptions) (*domain.Message, error) {
-	// Validation
-	thread, err := a.repository.GetThread(ctx, opts.ThreadID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get thread: %w", err)
-	}
-	if opts.Role == domain.RoleAssistant {
-		return nil, fmt.Errorf("cannot send message with role Assistant")
-	}
-
-	// If no parent specified, get the most recent message in thread
-	if opts.ParentID == nil {
-		messages, err := a.repository.GetMessages(ctx, thread.ID, nil, false)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get messages: %w", err)
-		}
-		if len(messages) > 0 {
-			lastMsg := messages[len(messages)-1]
-			opts.ParentID = &lastMsg.ID
-		}
-	}
-
-	// Get conversation history for context
-	history, err := a.repository.GetMessages(ctx, thread.ID, opts.ParentID, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get conversation history: %w", err)
-	}
-
-	// Build system message
-	systemMessage, err := a.buildSystemMessage(systemMessageOpts{
-		messageContent: opts.Content,
-		history:        history,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to build system message: %w", err)
-	}
-
-	// Create message
-	userMsg := &domain.Message{
-		ThreadID: opts.ThreadID,
-		ParentID: opts.ParentID,
-		Role:     opts.Role,
-		Content:  opts.Content,
-	}
-
-	if err := a.repository.AddMessageToThread(ctx, opts.ThreadID, userMsg); err != nil {
-		return nil, err
-	}
-
-	// Get AI response
-	generateOptions := llm.GenerateContentOptions{
-		Preset:        a.preset,
-		Content:       opts.Content,
-		SystemMessage: systemMessage,
-		History:       history,
-		Tools:         flattenTools(a.tools),
-		StreamHandler: opts.StreamHandler,
-	}
-	aiResponse, err := llm.GenerateContent(
-		ctx,
-		generateOptions,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate AI response: %w", err)
-	}
-
-	toolCallsString, err := json.Marshal(aiResponse.ToolCalls)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ToolCalls: %w", err)
-	}
-
-	// Create AI message as a reply to the user message
-	aiMsg := &domain.Message{
-		ThreadID:  opts.ThreadID,
-		ParentID:  &userMsg.ID,
-		Role:      domain.RoleAssistant,
-		Content:   aiResponse.TextResponse,
-		ToolCalls: string(toolCallsString),
-		ModelName: a.preset.Name,
-		Provider:  a.preset.Provider,
-	}
-
-	if err := a.repository.AddMessageToThread(ctx, opts.ThreadID, aiMsg); err != nil {
-		return nil, err
-	}
-
-	// Check for function calls in response
-	if len(aiResponse.ToolCalls) == 0 {
-		return aiMsg, nil
-	}
-
-	// Check if any tools require approval
-	var toolsNeedingApproval []llm.ToolCall
-
-	for _, call := range aiResponse.ToolCalls {
-		// Find tool approval setting
-		for serverName, serverTools := range a.tools {
-			for toolName, tool := range serverTools {
-				if fmt.Sprintf("%s__%s", serverName, toolName) == call.Name {
-					if tool.RequireApproval {
-						toolsNeedingApproval = append(toolsNeedingApproval, call)
-					}
-				}
-			}
-		}
-	}
-
-	// If any tools need approval, return error with all of them
-	if len(toolsNeedingApproval) > 0 {
-		return aiMsg, &PendingFunctionCallError{
-			Message:   aiMsg,
-			ToolCalls: toolsNeedingApproval,
-		}
-	}
-
-	// All tools are auto-approved, execute them concurrently
-	results, err := a.ExecuteTools(ctx, aiResponse.ToolCalls)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute tools: %w", err)
-	}
-
-	return a.SendMessage(ctx, SendMessageOptions{
-		ThreadID:      opts.ThreadID,
-		ParentID:      &aiMsg.ID,
-		Content:       results,
-		Role:          domain.RoleTool,
-		StreamHandler: opts.StreamHandler,
-	})
 }

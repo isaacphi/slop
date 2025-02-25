@@ -192,16 +192,13 @@ func GenerateContentStream(
 		}
 
 		// Closure to track streaming state
-		var currentFunctionId string
+		// var currentFunctionId string
 
+		// Map to track parsers for different function calls
+		var toolCallParsers = make(map[string]*ToolCallArgumentParser)
+
+		// In the streaming callback
 		streamCallback := func(ctx context.Context, chunk []byte) error {
-			// Check for context cancellation
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
-
 			// Try to parse as function call first
 			var fcall []struct {
 				Function FunctionCallChunk `json:"function"`
@@ -211,17 +208,34 @@ func GenerateContentStream(
 				// This is a function call chunk
 				functionName := fcall[0].Function.Name
 				functionId := fcall[0].Id
-				if functionId != nil && currentFunctionId != *functionId {
-					currentFunctionId = *functionId
+
+				if functionId == nil {
+					// Handle case where function ID is missing
+					return fmt.Errorf("received function call chunk without ID")
 				}
 
-				// Emit tool call event
-				eventsChan <- &ToolCallEvent{
-					ToolCallID:   currentFunctionId,
-					Name:         functionName,
-					ArgumentName: "", // TODO: Parse argument name
-					Chunk:        fcall[0].Function.ArgumentsJson,
+				// Get or create a parser for this function call
+				parser, exists := toolCallParsers[*functionId]
+				if !exists {
+					parser = NewToolCallArgumentParser()
+					toolCallParsers[*functionId] = parser
 				}
+
+				// Add the chunk to the parser
+				parser.AddChunk(fcall[0].Function.ArgumentsJson)
+
+				// Get current argument and value
+				argName := parser.GetCurrentArgName()
+				argValue := parser.GetCurrentValue()
+
+				// Emit tool call event with current argument info
+				eventsChan <- &ToolCallEvent{
+					ToolCallID:   *functionId,
+					Name:         functionName,
+					ArgumentName: argName,
+					Chunk:        argValue,
+				}
+
 				return nil
 			}
 
