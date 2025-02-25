@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -215,7 +216,7 @@ func (c *Config) validateConfig() (*ConfigSchema, error) {
 }
 
 // Merge settings into the main Config.v viper instance
-func (c *Config) mergeConfig(settings map[string]interface{}, source string) error {
+func (c *Config) mergeConfig(settings map[string]any, source string) error {
 	// Combine flattening and source tracking in one pass
 	flat := c.flattenAndTrack(settings, "", source)
 
@@ -227,42 +228,34 @@ func (c *Config) mergeConfig(settings map[string]interface{}, source string) err
 }
 
 // Build a map of js style dot notation settings to their source
-func (c *Config) flattenAndTrack(m map[string]interface{}, prefix string, source string) map[string]interface{} {
-	result := make(map[string]interface{})
-
+func (c *Config) flattenAndTrack(m map[string]any, prefix string, source string) map[string]any {
+	result := make(map[string]any)
 	for k, v := range m {
 		key := k
 		if prefix != "" {
 			key = prefix + "." + k
 		}
-
 		// Track the source
 		c.sources[key] = source
-
 		switch val := v.(type) {
-		case map[string]interface{}:
+		case map[string]any:
 			// Recursively flatten nested maps
 			flattened := c.flattenAndTrack(val, key, source)
-			for fk, fv := range flattened {
-				result[fk] = fv
-			}
-		case map[interface{}]interface{}:
-			// Convert to map[string]interface{} and recurse
-			stringMap := make(map[string]interface{})
+			maps.Copy(result, flattened)
+		case map[any]any:
+			// Convert to map[string]any and recurse
+			stringMap := make(map[string]any)
 			for mk, mv := range val {
 				if skeyStr, ok := mk.(string); ok {
 					stringMap[skeyStr] = mv
 				}
 			}
 			flattened := c.flattenAndTrack(stringMap, key, source)
-			for fk, fv := range flattened {
-				result[fk] = fv
-			}
+			maps.Copy(result, flattened)
 		default:
 			result[key] = v
 		}
 	}
-
 	return result
 }
 
@@ -276,7 +269,7 @@ func setDefaultsFromTags(v reflect.Value) error {
 	}
 
 	t := v.Type()
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue
@@ -361,7 +354,7 @@ func setDefaultsFromTags(v reflect.Value) error {
 }
 
 func extractDefaultFromTag(tag string) string {
-	for _, part := range strings.Split(tag, ",") {
+	for part := range strings.SplitSeq(tag, ",") {
 		if strings.HasPrefix(part, "default=") {
 			return strings.TrimPrefix(part, "default=")
 		}

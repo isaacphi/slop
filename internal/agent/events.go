@@ -6,13 +6,13 @@ import (
 	"github.com/isaacphi/slop/internal/llm"
 )
 
-// ToolApprovalEvent represents a tool call waiting for approval
-type ToolApprovalEvent struct {
+// ToolApprovalRequestEvent represents a tool call waiting for approval
+type ToolApprovalRequestEvent struct {
 	Message   *domain.Message
 	ToolCalls []llm.ToolCall
 }
 
-func (e ToolApprovalEvent) Type() events.EventType {
+func (e ToolApprovalRequestEvent) Type() events.EventType {
 	return events.EventTypeToolApproval
 }
 
