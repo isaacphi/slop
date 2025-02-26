@@ -191,9 +191,6 @@ func GenerateContentStream(
 			return
 		}
 
-		// Closure to track streaming state
-		// var currentFunctionId string
-
 		// Map to track parsers for different function calls
 		var toolCallParsers = make(map[string]*ToolCallArgumentParser)
 
@@ -221,21 +218,20 @@ func GenerateContentStream(
 					toolCallParsers[*functionId] = parser
 				}
 
-				// Add the chunk to the parser
-				parser.AddChunk(fcall[0].Function.ArgumentsJson)
+				// Add the chunk to the parser and get updates
+				updates := parser.AddChunk(fcall[0].Function.ArgumentsJson)
 
-				// Get current argument and value
-				argName := parser.GetCurrentArgName()
-				argValue := parser.GetCurrentValue()
-
-				// Emit tool call event with current argument info
-				eventsChan <- &ToolCallEvent{
-					ToolCallID:   *functionId,
-					Name:         functionName,
-					ArgumentName: argName,
-					Chunk:        argValue,
+				// Emit events for each update
+				for _, update := range updates {
+					if update.ValueChunk != "" {
+						eventsChan <- &ToolCallEvent{
+							ToolCallID:   *functionId,
+							Name:         functionName,
+							ArgumentName: update.ArgumentName,
+							Chunk:        update.ValueChunk,
+						}
+					}
 				}
-
 				return nil
 			}
 

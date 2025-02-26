@@ -6,15 +6,23 @@ import (
 
 // ToolCallArgumentParser handles incremental parsing of tool call arguments
 type ToolCallArgumentParser struct {
-	buffer       strings.Builder
-	currentArg   string
-	parsedArgs   map[string]string
-	inKey        bool
-	inString     bool
-	escaped      bool
-	keyBuffer    strings.Builder
-	valueBuffer  strings.Builder
-	completeJson string // Track complete JSON
+	buffer           strings.Builder
+	currentArg       string
+	parsedArgs       map[string]string
+	inKey            bool
+	inString         bool
+	escaped          bool
+	keyBuffer        strings.Builder
+	valueBuffer      strings.Builder
+	valueBeforeChunk string // Store value buffer state before processing a new chunk
+	completeJson     string // Track complete JSON
+}
+
+// ToolCallEvent represents an update to a tool call's argument value
+type ToolCallArgumentUpdate struct {
+	ArgumentName string // Name of the argument
+	ValueChunk   string // Incremental update to the value
+	IsComplete   bool   // Whether this argument value is complete
 }
 
 // NewToolCallArgumentParser creates a new parser instance
@@ -26,11 +34,17 @@ func NewToolCallArgumentParser() *ToolCallArgumentParser {
 	}
 }
 
-// AddChunk processes a new chunk of JSON data
-func (p *ToolCallArgumentParser) AddChunk(chunk string) {
+// AddChunk processes a new chunk of JSON data and returns updates to argument values
+func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate {
+	// Store the current value before processing the new chunk
+	p.valueBeforeChunk = p.valueBuffer.String()
+
 	// Append the new chunk to our buffer
 	p.buffer.WriteString(chunk)
 	p.completeJson += chunk
+
+	// Updates to return
+	var updates []ToolCallArgumentUpdate
 
 	// Process the buffer character by character
 	data := p.buffer.String()
@@ -58,11 +72,6 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) {
 			}
 		case '"':
 			p.inString = !p.inString
-			if p.inKey {
-				p.keyBuffer.WriteRune(r)
-			} else {
-				p.valueBuffer.WriteRune(r)
-			}
 		case ':':
 			if !p.inString && p.inKey {
 				// Found the separator between key and value
@@ -74,60 +83,68 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) {
 					p.currentArg = strings.TrimSpace(keyStr)
 				}
 				p.inKey = false
-			}
-
-			// Add the character to the appropriate buffer
-			if p.inKey {
-				p.keyBuffer.WriteRune(r)
+				p.keyBuffer.Reset()
 			} else {
-				p.valueBuffer.WriteRune(r)
+				// Add the character to the appropriate buffer
+				if p.inKey {
+					p.keyBuffer.WriteRune(r)
+				} else {
+					p.valueBuffer.WriteRune(r)
+				}
 			}
-
 		case ',':
 			if !p.inString {
 				// End of a key-value pair
 				if !p.inKey && p.currentArg != "" {
 					p.parsedArgs[p.currentArg] = p.valueBuffer.String()
+
+					// Create an update with the completed value
+					if p.valueBuffer.Len() > 0 {
+						valueStr := p.valueBuffer.String()
+						update := ToolCallArgumentUpdate{
+							ArgumentName: p.currentArg,
+							ValueChunk:   valueStr[len(p.valueBeforeChunk):],
+							IsComplete:   true,
+						}
+						updates = append(updates, update)
+					}
+
 					p.valueBuffer.Reset()
 				}
 				p.inKey = true
 				p.currentArg = ""
-			}
-
-			// Add the character to the appropriate buffer
-			if p.inKey {
-				p.keyBuffer.WriteRune(r)
 			} else {
-				p.valueBuffer.WriteRune(r)
+				// Add the character to the appropriate buffer
+				if p.inKey {
+					p.keyBuffer.WriteRune(r)
+				} else {
+					p.valueBuffer.WriteRune(r)
+				}
 			}
-
 		case '{':
 			// Start of object
 			if p.keyBuffer.Len() == 0 && p.valueBuffer.Len() == 0 {
 				// This is the opening brace of the entire object
 				p.inKey = true
-			}
-
-			// Add the character to the appropriate buffer
-			if p.inKey {
-				p.keyBuffer.WriteRune(r)
 			} else {
-				p.valueBuffer.WriteRune(r)
+				// Add the character to the appropriate buffer
+				if p.inKey {
+					p.keyBuffer.WriteRune(r)
+				} else {
+					p.valueBuffer.WriteRune(r)
+				}
 			}
-
 		case '}':
 			// End of object - store the final value
 			if !p.inString && !p.inKey && p.currentArg != "" {
 				p.parsedArgs[p.currentArg] = p.valueBuffer.String()
-			}
-
-			// Add the character to the appropriate buffer
-			if p.inKey {
-				p.keyBuffer.WriteRune(r)
 			} else {
-				p.valueBuffer.WriteRune(r)
+				if p.inKey {
+					p.keyBuffer.WriteRune(r)
+				} else {
+					p.valueBuffer.WriteRune(r)
+				}
 			}
-
 		default:
 			// Regular character
 			if p.inKey {
@@ -143,6 +160,23 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) {
 			p.buffer.WriteString(data[i+1:])
 		}
 	}
+
+	// Check if we have an incremental update for the current value
+	currentValue := p.valueBuffer.String()
+	if !p.inKey && p.currentArg != "" && len(currentValue) > len(p.valueBeforeChunk) {
+		// Only create an update if there's new content
+		incrementalUpdate := currentValue[len(p.valueBeforeChunk):]
+		if len(incrementalUpdate) > 0 {
+			update := ToolCallArgumentUpdate{
+				ArgumentName: p.currentArg,
+				ValueChunk:   incrementalUpdate,
+				IsComplete:   false,
+			}
+			updates = append(updates, update)
+		}
+	}
+
+	return updates
 }
 
 // GetCurrentArgName returns the name of the argument currently being parsed
@@ -170,6 +204,7 @@ func (p *ToolCallArgumentParser) Reset() {
 	p.buffer.Reset()
 	p.keyBuffer.Reset()
 	p.valueBuffer.Reset()
+	p.valueBeforeChunk = ""
 	p.currentArg = ""
 	p.parsedArgs = make(map[string]string)
 	p.inKey = false
