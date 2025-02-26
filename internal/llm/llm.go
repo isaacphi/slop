@@ -193,6 +193,7 @@ func GenerateContentStream(
 
 		// Map to track parsers for different function calls
 		var toolCallParsers = make(map[string]*ToolCallArgumentParser)
+		var functionId *string
 
 		// In the streaming callback
 		streamCallback := func(ctx context.Context, chunk []byte) error {
@@ -204,11 +205,13 @@ func GenerateContentStream(
 			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
 				// This is a function call chunk
 				functionName := fcall[0].Function.Name
-				functionId := fcall[0].Id
 
+				// OpenAI only returns the function call ID once so we perist it
+				if fcall[0].Id != nil {
+					functionId = fcall[0].Id
+				}
 				if functionId == nil {
-					// Handle case where function ID is missing
-					return fmt.Errorf("received function call chunk without ID")
+					return nil
 				}
 
 				// Get or create a parser for this function call

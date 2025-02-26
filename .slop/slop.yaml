@@ -13,6 +13,9 @@ presets:
     temperature: 1
     toolsets:
       - mytools
+  openai:
+    toolsets:
+      - mytools
 prompts:
   french:
     content: reply in french
