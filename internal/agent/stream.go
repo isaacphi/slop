@@ -195,7 +195,15 @@ func (a *Agent) processMessage(ctx context.Context, msg *domain.Message, eventsC
 				// Forward the event
 				eventsChan <- e
 
-			case *llm.ToolCallEvent:
+			case *llm.ToolCallStartEvent:
+				// Forward the event
+				eventsChan <- e
+
+			case *llm.ToolNewArgumentEvent:
+				// Forward the event
+				eventsChan <- e
+
+			case *llm.ToolArgumentChunkEvent:
 				// Forward the event
 				eventsChan <- e
 

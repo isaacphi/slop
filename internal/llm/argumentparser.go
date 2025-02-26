@@ -2,6 +2,8 @@ package llm
 
 import (
 	"strings"
+
+	"github.com/isaacphi/slop/internal/events"
 )
 
 // ToolCallArgumentParser handles incremental parsing of tool call arguments
@@ -18,13 +20,6 @@ type ToolCallArgumentParser struct {
 	completeJson     string // Track complete JSON
 }
 
-// ToolCallEvent represents an update to a tool call's argument value
-type ToolCallArgumentUpdate struct {
-	ArgumentName string // Name of the argument
-	ValueChunk   string // Incremental update to the value
-	IsComplete   bool   // Whether this argument value is complete
-}
-
 // NewToolCallArgumentParser creates a new parser instance
 func NewToolCallArgumentParser() *ToolCallArgumentParser {
 	return &ToolCallArgumentParser{
@@ -35,7 +30,7 @@ func NewToolCallArgumentParser() *ToolCallArgumentParser {
 }
 
 // AddChunk processes a new chunk of JSON data and returns updates to argument values
-func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate {
+func (p *ToolCallArgumentParser) AddChunk(chunk string) []events.Event {
 	// Store the current value before processing the new chunk
 	p.valueBeforeChunk = p.valueBuffer.String()
 
@@ -44,7 +39,7 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate
 	p.completeJson += chunk
 
 	// Updates to return
-	var updates []ToolCallArgumentUpdate
+	var updates []events.Event
 
 	// Process the buffer character by character
 	data := p.buffer.String()
@@ -83,6 +78,7 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate
 					p.currentArg = strings.TrimSpace(keyStr)
 				}
 				p.inKey = false
+				updates = append(updates, ToolNewArgumentEvent{ArgumentName: p.currentArg})
 				p.keyBuffer.Reset()
 			} else {
 				// Add the character to the appropriate buffer
@@ -101,10 +97,9 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate
 					// Create an update with the completed value
 					if p.valueBuffer.Len() > 0 {
 						valueStr := p.valueBuffer.String()
-						update := ToolCallArgumentUpdate{
+						update := ToolArgumentChunkEvent{
 							ArgumentName: p.currentArg,
-							ValueChunk:   valueStr[len(p.valueBeforeChunk):],
-							IsComplete:   true,
+							Chunk:        valueStr[len(p.valueBeforeChunk):],
 						}
 						updates = append(updates, update)
 					}
@@ -149,7 +144,7 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate
 			// Regular character
 			if p.inKey {
 				p.keyBuffer.WriteRune(r)
-			} else {
+			} else if p.inString {
 				p.valueBuffer.WriteRune(r)
 			}
 		}
@@ -167,10 +162,9 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []ToolCallArgumentUpdate
 		// Only create an update if there's new content
 		incrementalUpdate := currentValue[len(p.valueBeforeChunk):]
 		if len(incrementalUpdate) > 0 {
-			update := ToolCallArgumentUpdate{
+			update := ToolArgumentChunkEvent{
 				ArgumentName: p.currentArg,
-				ValueChunk:   incrementalUpdate,
-				IsComplete:   false,
+				Chunk:        incrementalUpdate,
 			}
 			updates = append(updates, update)
 		}

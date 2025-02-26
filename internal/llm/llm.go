@@ -194,6 +194,7 @@ func GenerateContentStream(
 		// Map to track parsers for different function calls
 		var toolCallParsers = make(map[string]*ToolCallArgumentParser)
 		var functionId *string
+		var functionName string
 
 		// In the streaming callback
 		streamCallback := func(ctx context.Context, chunk []byte) error {
@@ -204,7 +205,10 @@ func GenerateContentStream(
 			}
 			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
 				// This is a function call chunk
-				functionName := fcall[0].Function.Name
+				if fcall[0].Function.Name != functionName {
+					functionName = fcall[0].Function.Name
+					eventsChan <- &ToolCallStartEvent{FunctionName: functionName}
+				}
 
 				// OpenAI only returns the function call ID once so we perist it
 				if fcall[0].Id != nil {
@@ -226,12 +230,16 @@ func GenerateContentStream(
 
 				// Emit events for each update
 				for _, update := range updates {
-					if update.ValueChunk != "" {
-						eventsChan <- &ToolCallEvent{
-							ToolCallID:   *functionId,
-							Name:         functionName,
-							ArgumentName: update.ArgumentName,
-							Chunk:        update.ValueChunk,
+					switch e := update.(type) {
+					case ToolNewArgumentEvent:
+						e.ToolCallID = *functionId
+						e.Name = functionName
+						eventsChan <- &e
+					case ToolArgumentChunkEvent:
+						if e.Chunk != "" {
+							e.ToolCallID = *functionId
+							e.Name = functionName
+							eventsChan <- &e
 						}
 					}
 				}

@@ -335,10 +335,14 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 			case *llm.TextEvent:
 				fmt.Print(e.Content)
 
-			case *llm.ToolCallEvent:
+			case *llm.ToolCallStartEvent:
+				fmt.Printf("\n\n[Requesting function call: %s]", e.FunctionName)
+
+			case *llm.ToolNewArgumentEvent:
+				fmt.Printf("\n%s:\n", e.ArgumentName)
+
+			case *llm.ToolArgumentChunkEvent:
 				// For the CLI, we might want to indicate that a tool call is happening
-				// TODO: this isn't printing too nicely right now. We should have a separate
-				// event for argument start
 				fmt.Print(e.Chunk)
 
 			case *llm.MessageCompleteEvent:
@@ -350,7 +354,7 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 				return handleToolApproval(ctx, agentService, e.Message, e.ToolCalls)
 
 			case *agent.ToolResultEvent:
-				fmt.Printf("\nTool %s result: %s\n", e.Name, e.Result)
+				fmt.Printf("%s\n", e.Result)
 
 			case *agent.NewMessageEvent:
 				// Update thread state if needed
@@ -367,14 +371,8 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 
 // Helper function to handle tool approval
 func handleToolApproval(ctx context.Context, agentService *agent.Agent, message *domain.Message, toolCalls []llm.ToolCall) error {
-	// Print tool calls details
-	fmt.Printf("\nPending tool calls:\n")
-	for _, call := range toolCalls {
-		fmt.Printf("\nName: %s\nArguments: %s\n", call.Name, string(call.Arguments))
-	}
-
 	// Prompt for approval
-	fmt.Print("\nApprove tool execution? [y/N] ")
+	fmt.Print("\n\nApprove tool execution? [y/N] ")
 	reader := bufio.NewReader(os.Stdin)
 	response, err := reader.ReadString('\n')
 	if err != nil {

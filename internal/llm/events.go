@@ -11,16 +11,36 @@ func (e TextEvent) Type() events.EventType {
 	return events.EventTypeText
 }
 
-// ToolCallEvent represents a chunk of a tool call
-type ToolCallEvent struct {
+// ToolCallStartEvent represents a tool call starting in a stream
+type ToolCallStartEvent struct {
+	FunctionName string
+}
+
+func (e ToolCallStartEvent) Type() events.EventType {
+	return events.EventTypeToolCallStart
+}
+
+// ToolNewArgumentEvent represents a new argument being streamed
+type ToolNewArgumentEvent struct {
+	ToolCallID   string
+	Name         string
+	ArgumentName string
+}
+
+func (e ToolNewArgumentEvent) Type() events.EventType {
+	return events.EventTypeToolNewArgument
+}
+
+// ToolArgumentChunkEvent represents a chunk of a tool call
+type ToolArgumentChunkEvent struct {
 	ToolCallID   string
 	Name         string
 	ArgumentName string
 	Chunk        string
 }
 
-func (e ToolCallEvent) Type() events.EventType {
-	return events.EventTypeToolCall
+func (e ToolArgumentChunkEvent) Type() events.EventType {
+	return events.EventTypeToolArgumentChunk
 }
 
 // LLMStream represents an ongoing LLM response stream

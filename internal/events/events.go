@@ -5,7 +5,9 @@ type EventType int
 
 const (
 	EventTypeText EventType = iota
-	EventTypeToolCall
+	EventTypeToolCallStart
+	EventTypeToolNewArgument
+	EventTypeToolArgumentChunk
 	EventTypeToolApproval
 	EventTypeToolResult
 	EventTypeNewMessage
