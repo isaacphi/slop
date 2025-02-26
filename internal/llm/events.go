@@ -11,6 +11,9 @@ func (e TextEvent) Type() events.EventType {
 	return events.EventTypeText
 }
 
+// TODO: I would like a better way to stream tool calls. Need to stream general json data
+// but have it always be parseable
+
 // ToolCallStartEvent represents a tool call starting in a stream
 type ToolCallStartEvent struct {
 	FunctionName string

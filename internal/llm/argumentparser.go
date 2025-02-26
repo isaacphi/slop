@@ -47,6 +47,7 @@ func (p *ToolCallArgumentParser) AddChunk(chunk string) []events.Event {
 
 	for i, r := range data {
 		if p.escaped {
+			// TODO: stream unescaped string
 			// Handle escaped character
 			if p.inKey {
 				p.keyBuffer.WriteRune(r)
