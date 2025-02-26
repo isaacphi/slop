@@ -337,6 +337,8 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 
 			case *llm.ToolCallEvent:
 				// For the CLI, we might want to indicate that a tool call is happening
+				// TODO: this isn't printing too nicely right now. We should have a separate
+				// event for argument start
 				fmt.Print(e.Chunk)
 
 			case *llm.MessageCompleteEvent:
