@@ -46,6 +46,10 @@ type IncrementalJsonParser struct {
 	currentKey strings.Builder
 	literalPos int // Position within true/false/null literals
 
+	// Value accumulation
+	valueBuffer map[string]*strings.Builder
+	currentPath string
+
 	lastProcessed int // Position of last processed character
 }
 
@@ -66,7 +70,8 @@ func NewIncrementalJsonParser(schema *domain.Parameters) *IncrementalJsonParser 
 				Property: rootProperty,
 			},
 		},
-		pathStack: make([]string, 0),
+		pathStack:   make([]string, 0),
+		valueBuffer: make(map[string]*strings.Builder),
 	}
 
 	return parser
@@ -89,6 +94,33 @@ func (p *IncrementalJsonParser) getCurrentPath() string {
 	return result.String()
 }
 
+// flushBuffers converts all accumulated value buffers to events
+func (p *IncrementalJsonParser) flushBuffers() []JsonUpdateEvent {
+	events := make([]JsonUpdateEvent, 0, len(p.valueBuffer))
+
+	for path, buffer := range p.valueBuffer {
+		if buffer.Len() > 0 {
+			events = append(events, JsonUpdateEvent{
+				Key:        path,
+				ValueChunk: buffer.String(),
+			})
+			buffer.Reset()
+		}
+	}
+
+	// Clear map after flushing
+	p.valueBuffer = make(map[string]*strings.Builder)
+
+	return events
+}
+
+func (p *IncrementalJsonParser) appendToValueBuffer(path, value string) {
+	if _, exists := p.valueBuffer[path]; !exists {
+		p.valueBuffer[path] = &strings.Builder{} // Store a pointer
+	}
+	p.valueBuffer[path].WriteString(value)
+}
+
 // ProcessChunk processes a chunk of JSON and returns update events
 func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, error) {
 	p.completeString.WriteString(chunk)
@@ -108,9 +140,20 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 
 		// Get current context from top of stack
 		if len(p.stateStack) == 0 {
+			flushEvents := p.flushBuffers()
+			events = append(events, flushEvents...)
 			return events, errors.New("invalid JSON: parser state stack is empty")
 		}
 		ctx := &p.stateStack[len(p.stateStack)-1]
+
+		// Calculate current path
+		newPath := p.getCurrentPath()
+		if p.currentPath != newPath {
+			// Path changed, flush buffers
+			flushEvents := p.flushBuffers()
+			events = append(events, flushEvents...)
+			p.currentPath = newPath
+		}
 
 		switch ctx.State {
 		case StateObjectStart:
@@ -131,6 +174,8 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 
 					// Update parent state
 					if len(p.stateStack) == 0 {
+						flushEvents := p.flushBuffers()
+						events = append(events, flushEvents...)
 						return events, errors.New("invalid JSON: unexpected closing brace")
 					}
 					parentCtx := &p.stateStack[len(p.stateStack)-1]
@@ -142,6 +187,8 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					}
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: unexpected character '%c' at object start", char)
 			}
 
@@ -183,6 +230,8 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				// Move to value state
 				ctx.State = StateObjectValue
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected ':' but got '%c'", char)
 			}
 
@@ -223,10 +272,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 't'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "t",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "t")
 			} else if char == 'f' {
 				// false
 				p.stateStack = append(p.stateStack, StateContext{
@@ -235,10 +281,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 'f'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "f",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "f")
 			} else if char == 'n' {
 				// null
 				p.stateStack = append(p.stateStack, StateContext{
@@ -247,10 +290,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 'n'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "n",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "n")
 			} else if char == '-' || (char >= '0' && char <= '9') {
 				// Number
 				p.stateStack = append(p.stateStack, StateContext{
@@ -258,11 +298,10 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					Property: ctx.Property,
 				})
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: unexpected character '%c' in object value", char)
 			}
 
@@ -302,6 +341,8 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					}
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected ',' or '}' but got '%c'", char)
 			}
 
@@ -392,10 +433,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 't'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "t",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "t")
 			} else if char == 'f' {
 				// false
 				p.stateStack = append(p.stateStack, StateContext{
@@ -404,10 +442,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 'f'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "f",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "f")
 			} else if char == 'n' {
 				// null
 				p.stateStack = append(p.stateStack, StateContext{
@@ -416,10 +451,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				})
 				p.literalPos = 1 // Already processed 'n'
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: "n",
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), "n")
 			} else if char == '-' || (char >= '0' && char <= '9') {
 				// Number
 				p.stateStack = append(p.stateStack, StateContext{
@@ -427,11 +459,10 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					Property: ctx.Property,
 				})
 
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: unexpected character '%c' in array value", char)
 			}
 
@@ -464,6 +495,8 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					}
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected ',' or ']' but got '%c'", char)
 			}
 
@@ -488,12 +521,13 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 						parentCtx.State = StateArrayComma
 					}
 				}
+
+				// Flush accumulated value
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 			} else {
 				// Regular character in string
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 			}
 
 		case StateStringEscape:
@@ -521,17 +555,16 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 				// A full implementation would parse the 4 hex digits
 				escaped = "\\u"
 			default:
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: invalid escape sequence '\\%c'", char)
 			}
 
-			// If we're in a key, add to key builder, otherwise emit as value
+			// If we're in a key, add to key builder, otherwise append to value buffer
 			if len(p.stateStack) >= 2 && p.stateStack[len(p.stateStack)-2].State == StateObjectKey {
 				p.currentKey.WriteString(escaped)
 			} else {
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: escaped,
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), escaped)
 			}
 
 			// Pop back to string state
@@ -540,10 +573,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 		case StateNumber:
 			if (char >= '0' && char <= '9') || char == '.' || char == 'e' || char == 'E' || char == '+' || char == '-' {
 				// Continue number
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 			} else {
 				// End of number
 				// Pop the number state
@@ -559,6 +589,10 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 					}
 				}
 
+				// Flush accumulated value
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
+
 				// Reprocess this character
 				i--
 			}
@@ -566,10 +600,7 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 		case StateTrue:
 			expected := "true"
 			if char == expected[p.literalPos] {
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 
 				p.literalPos++
 				if p.literalPos == len(expected) {
@@ -586,18 +617,21 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 							parentCtx.State = StateArrayComma
 						}
 					}
+
+					// Flush accumulated value
+					flushEvents := p.flushBuffers()
+					events = append(events, flushEvents...)
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected 'true' but got invalid character '%c'", char)
 			}
 
 		case StateFalse:
 			expected := "false"
 			if char == expected[p.literalPos] {
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 
 				p.literalPos++
 				if p.literalPos == len(expected) {
@@ -614,18 +648,21 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 							parentCtx.State = StateArrayComma
 						}
 					}
+
+					// Flush accumulated value
+					flushEvents := p.flushBuffers()
+					events = append(events, flushEvents...)
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected 'false' but got invalid character '%c'", char)
 			}
 
 		case StateNull:
 			expected := "null"
 			if char == expected[p.literalPos] {
-				events = append(events, JsonUpdateEvent{
-					Key:        p.getCurrentPath(),
-					ValueChunk: string(char),
-				})
+				p.appendToValueBuffer(p.getCurrentPath(), string(char))
 
 				p.literalPos++
 				if p.literalPos == len(expected) {
@@ -642,8 +679,14 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 							parentCtx.State = StateArrayComma
 						}
 					}
+
+					// Flush accumulated value
+					flushEvents := p.flushBuffers()
+					events = append(events, flushEvents...)
 				}
 			} else {
+				flushEvents := p.flushBuffers()
+				events = append(events, flushEvents...)
 				return events, fmt.Errorf("invalid JSON: expected 'null' but got invalid character '%c'", char)
 			}
 		}
@@ -651,6 +694,12 @@ func (p *IncrementalJsonParser) ProcessChunk(chunk string) ([]JsonUpdateEvent, e
 
 	// Update the last processed position
 	p.lastProcessed = len(fullStr)
+
+	// Only flush buffers at end of chunk if we've accumulated values
+	if len(p.valueBuffer) > 0 {
+		flushEvents := p.flushBuffers()
+		events = append(events, flushEvents...)
+	}
 
 	return events, nil
 }
