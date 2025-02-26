@@ -28,8 +28,6 @@ var rootCmd = &cobra.Command{
 }
 
 func Execute() {
-	// TODO: is this necessary
-	// Add a context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

@@ -11,8 +11,14 @@ func (e TextEvent) Type() events.EventType {
 	return events.EventTypeText
 }
 
-// TODO: I would like a better way to stream tool calls. Need to stream general json data
-// but have it always be parseable
+type JsonUpdateEvent struct {
+	Key        string // The json style path of the key that is receiving an update
+	ValueChunk string // Incremental update to that key
+}
+
+func (e JsonUpdateEvent) Type() events.EventType {
+	return events.EventTypeJsonUpdate
+}
 
 // ToolCallStartEvent represents a tool call starting in a stream
 type ToolCallStartEvent struct {
@@ -21,29 +27,6 @@ type ToolCallStartEvent struct {
 
 func (e ToolCallStartEvent) Type() events.EventType {
 	return events.EventTypeToolCallStart
-}
-
-// ToolNewArgumentEvent represents a new argument being streamed
-type ToolNewArgumentEvent struct {
-	ToolCallID   string
-	Name         string
-	ArgumentName string
-}
-
-func (e ToolNewArgumentEvent) Type() events.EventType {
-	return events.EventTypeToolNewArgument
-}
-
-// ToolArgumentChunkEvent represents a chunk of a tool call
-type ToolArgumentChunkEvent struct {
-	ToolCallID   string
-	Name         string
-	ArgumentName string
-	Chunk        string
-}
-
-func (e ToolArgumentChunkEvent) Type() events.EventType {
-	return events.EventTypeToolArgumentChunk
 }
 
 // LLMStream represents an ongoing LLM response stream

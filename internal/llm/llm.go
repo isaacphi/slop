@@ -35,13 +35,6 @@ type FunctionCallChunk struct {
 	ArgumentsJson string `json:"arguments"`
 }
 
-type StreamHandler interface {
-	HandleTextChunk(chunk []byte) error
-	HandleMessageDone()
-	HandleFunctionCallStart(id, name string) error
-	HandleFunctionCallChunk(chunk FunctionCallChunk) error
-}
-
 func createLLMClient(preset config.Preset) (llms.Model, error) {
 	var llm llms.Model
 	var err error
@@ -162,7 +155,6 @@ type GenerateContentOptions struct {
 	SystemMessage *domain.Message
 	History       []domain.Message
 	Tools         map[string]domain.Tool
-	StreamHandler StreamHandler
 }
 
 // GenerateContentStream returns a stream of events from the LLM
@@ -192,7 +184,7 @@ func GenerateContentStream(
 		}
 
 		// Map to track parsers for different function calls
-		var toolCallParsers = make(map[string]*ToolCallArgumentParser)
+		var toolCallParsers = make(map[string]*IncrementalJsonParser)
 		var functionId *string
 		var functionName string
 
@@ -221,27 +213,23 @@ func GenerateContentStream(
 				// Get or create a parser for this function call
 				parser, exists := toolCallParsers[*functionId]
 				if !exists {
-					parser = NewToolCallArgumentParser()
+					tool, exists := opts.Tools[functionName]
+					if !exists {
+						return fmt.Errorf("tool not found: %s", functionName)
+					}
+					parser = NewIncrementalJsonParser(&tool.Parameters)
 					toolCallParsers[*functionId] = parser
 				}
 
 				// Add the chunk to the parser and get updates
-				updates := parser.AddChunk(fcall[0].Function.ArgumentsJson)
+				updates, err := parser.ProcessChunk(fcall[0].Function.ArgumentsJson)
+				if err != nil {
+					return fmt.Errorf("json parse error: %w", err)
+				}
 
 				// Emit events for each update
 				for _, update := range updates {
-					switch e := update.(type) {
-					case ToolNewArgumentEvent:
-						e.ToolCallID = *functionId
-						e.Name = functionName
-						eventsChan <- &e
-					case ToolArgumentChunkEvent:
-						if e.Chunk != "" {
-							e.ToolCallID = *functionId
-							e.Name = functionName
-							eventsChan <- &e
-						}
-					}
+					eventsChan <- &update
 				}
 				return nil
 			}
@@ -302,7 +290,6 @@ func GenerateContentStream(
 	return LLMStream{Events: eventsChan, Done: done}
 }
 
-// TODO: Remove
 // GenerateContent generates content using the specified model configuration
 func GenerateContent(
 	ctx context.Context,
@@ -311,39 +298,6 @@ func GenerateContent(
 	llmClient, err := createLLMClient(opts.Preset)
 	if err != nil {
 		return MessageResponse{}, fmt.Errorf("failed to create LLM client: %w", err)
-	}
-
-	var streamCallback func(ctx context.Context, chunk []byte) error
-
-	if opts.StreamHandler != nil {
-		// Closure to track streaming state
-		var currentFunctionId string
-
-		streamCallback = func(ctx context.Context, chunk []byte) error {
-			// Try to parse as function call first
-			// When a function call is about to start, a chunk with the following format is sent:
-			// [{"function":{"arguments":"","name":"filesystem__read_file"},"id":"toolu_01TA4sQsjA1XhWDBBof9THGJ","type":"function"}]
-			// Subsequent chunks take the form below, with "arguments" containing incremental chunks of the arguments json
-			// [{"function":{"arguments":"ml\"}","name":"filesystem__read_file"},"id":"toolu_01TA4sQsjA1XhWDBBof9THGJ","type":"function"}]
-			var fcall []struct {
-				Function FunctionCallChunk `json:"function"`
-				Id       *string           `json:"id,omitempty"`
-			}
-			if err := json.Unmarshal(chunk, &fcall); err == nil && len(fcall) > 0 {
-				// This is a function call chunk
-				functionName := fcall[0].Function.Name
-				functionId := fcall[0].Id
-				if functionId != nil && currentFunctionId != *functionId {
-					if err := opts.StreamHandler.HandleFunctionCallStart(*functionId, functionName); err != nil {
-						return err
-					}
-					currentFunctionId = *functionId
-				}
-				return opts.StreamHandler.HandleFunctionCallChunk(fcall[0].Function)
-			}
-			// Regular text chunk
-			return opts.StreamHandler.HandleTextChunk(chunk)
-		}
 	}
 
 	callOptions := []llms.CallOption{
@@ -356,10 +310,6 @@ func GenerateContent(
 		callOptions = append(callOptions, llms.WithTools(langchainTools))
 	}
 
-	if opts.StreamHandler != nil {
-		callOptions = append(callOptions, llms.WithStreamingFunc(streamCallback))
-	}
-
 	if opts.SystemMessage != nil && opts.SystemMessage.Role != domain.RoleSystem {
 		return MessageResponse{}, fmt.Errorf("system message is of type %v", opts.SystemMessage.Role)
 	}
@@ -368,11 +318,7 @@ func GenerateContent(
 
 	resp, err := llmClient.GenerateContent(ctx, msgs, callOptions...)
 	if err != nil {
-		return MessageResponse{}, fmt.Errorf("streaming message failed: %w", err)
-	}
-
-	if opts.StreamHandler != nil {
-		opts.StreamHandler.HandleMessageDone()
+		return MessageResponse{}, fmt.Errorf("sending message failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {

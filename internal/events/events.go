@@ -6,6 +6,7 @@ type EventType int
 const (
 	EventTypeText EventType = iota
 	EventTypeToolCallStart
+	EventTypeJsonUpdate
 	EventTypeToolNewArgument
 	EventTypeToolArgumentChunk
 	EventTypeToolApproval

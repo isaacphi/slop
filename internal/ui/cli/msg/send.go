@@ -318,6 +318,8 @@ func getLastUserMessageID(messages []domain.Message) *uuid.UUID {
 
 // processStream handles the common logic for processing events from an agent stream
 func processStream(ctx context.Context, agentService *agent.Agent, stream agent.AgentStream) error {
+	var jsonKey string
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -338,13 +340,6 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 			case *llm.ToolCallStartEvent:
 				fmt.Printf("\n\n[Requesting function call: %s]", e.FunctionName)
 
-			case *llm.ToolNewArgumentEvent:
-				fmt.Printf("\n%s:\n", e.ArgumentName)
-
-			case *llm.ToolArgumentChunkEvent:
-				// For the CLI, we might want to indicate that a tool call is happening
-				fmt.Print(e.Chunk)
-
 			case *llm.MessageCompleteEvent:
 				// The message is complete with all metadata
 				// This is where we'd handle any post-message processing if needed
@@ -358,6 +353,13 @@ func processStream(ctx context.Context, agentService *agent.Agent, stream agent.
 
 			case *agent.NewMessageEvent:
 				// Update thread state if needed
+
+			case *llm.JsonUpdateEvent:
+				if jsonKey != e.Key {
+					jsonKey = e.Key
+					fmt.Printf("\n%s:\n", jsonKey)
+				}
+				fmt.Print(e.ValueChunk)
 
 			case *events.ErrorEvent:
 				return e.Error

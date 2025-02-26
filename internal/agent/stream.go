@@ -191,22 +191,6 @@ func (a *Agent) processMessage(ctx context.Context, msg *domain.Message, eventsC
 
 			// Handle event and collect response data
 			switch e := event.(type) {
-			case *llm.TextEvent:
-				// Forward the event
-				eventsChan <- e
-
-			case *llm.ToolCallStartEvent:
-				// Forward the event
-				eventsChan <- e
-
-			case *llm.ToolNewArgumentEvent:
-				// Forward the event
-				eventsChan <- e
-
-			case *llm.ToolArgumentChunkEvent:
-				// Forward the event
-				eventsChan <- e
-
 			case *llm.MessageCompleteEvent:
 				// Create and save AI message
 				aiMsg = &domain.Message{
@@ -309,6 +293,10 @@ func (a *Agent) processMessage(ctx context.Context, msg *domain.Message, eventsC
 
 			case *events.ErrorEvent:
 				return nil, false, e.Error
+
+			default:
+				// Forward events to agent stream
+				eventsChan <- e
 			}
 
 		case <-llmStream.Done:
