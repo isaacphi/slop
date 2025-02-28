@@ -77,6 +77,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, func() tea.Msg {
 				return screens.ScreenChangeMsg{Screen: screens.ChatScreen}
 			}
+		case "?":
+			// Toggle help
+			m.help.ShowAll = !m.help.ShowAll
+			return m, nil
 		}
 	case tea.WindowSizeMsg:
 		m.SetSize(msg.Width, msg.Height)
@@ -120,10 +124,9 @@ func (m Model) View() string {
 		b.WriteString("\n")
 	}
 
-	// Help with navigation hint
-	helpText := "h: home | q: quit | use arrow keys to navigate"
+	// Let the help component handle displaying the help
 	helpStyle := m.theme.FooterStyle.Copy().Width(m.width)
-	b.WriteString(helpStyle.Render(helpText))
+	b.WriteString(helpStyle.Render(m.help.View()))
 
 	return b.String()
 }

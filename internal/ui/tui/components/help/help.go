@@ -9,10 +9,11 @@ import (
 
 // Model represents the help component
 type Model struct {
-	help  help.Model
-	keys  keymap.KeyMap
-	theme *theme.Theme
-	width int
+	help    help.Model
+	keys    keymap.KeyMap
+	theme   *theme.Theme
+	width   int
+	ShowAll bool
 }
 
 // New creates a new help model
@@ -60,7 +61,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // View renders the help component
 func (m Model) View() string {
-	helpText := m.ShortHelp()
+	var helpText string
+	if m.ShowAll {
+		helpText = m.FullHelp()
+	} else {
+		helpText = m.ShortHelp()
+	}
 	style := m.theme.FooterStyle.Copy().Width(m.width)
 	return style.Render(helpText)
 }

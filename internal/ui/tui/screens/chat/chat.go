@@ -104,6 +104,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg {
 					return screens.ScreenChangeMsg{Screen: screens.SettingsScreen}
 				}
+			case "?":
+				// Toggle help
+				m.help.ShowAll = !m.help.ShowAll
+				return m, nil
 			}
 		}
 		
@@ -170,14 +174,21 @@ func (m Model) View() string {
 	b.WriteString(inputView)
 	b.WriteString("\n\n")
 	
-	// Help text includes focus mode indicator
-	helpText := "ESC: " + (map[screens.FocusMode]string{
+	// Let the help component handle displaying the help
+	// We'll prepend our focus mode indicator
+	escHint := "ESC: " + (map[screens.FocusMode]string{
 		screens.InputFocus: "exit input mode",
 		screens.NavFocus:   "enter input mode",
-	})[m.focusMode]
+	})[m.focusMode] + " | "
 	
 	helpStyle := m.theme.FooterStyle.Copy().Width(m.width)
-	b.WriteString(helpStyle.Render(helpText + " | h: home | q: quit"))
+	
+	// Use the help component's view with our custom styling
+	if m.help.ShowAll {
+		b.WriteString(helpStyle.Render(m.help.View()))
+	} else {
+		b.WriteString(helpStyle.Render(escHint + m.help.View()))
+	}
 
 	return b.String()
 }

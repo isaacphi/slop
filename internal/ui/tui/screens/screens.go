@@ -21,5 +21,6 @@ type FocusMode int
 
 const (
 	InputFocus FocusMode = iota // Focus is on text input
-	NavFocus                     // Focus is on navigation (hotkeys active)
+	NavFocus                    // Focus is on navigation (hotkeys active)
 )
+
