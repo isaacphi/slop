@@ -8,7 +8,6 @@ type ScreenType int
 const (
 	HomeScreen ScreenType = iota
 	ChatScreen
-	SettingsScreen
 )
 
 // ScreenChangeMsg is sent when a screen change is requested
@@ -23,4 +22,3 @@ const (
 	InputFocus FocusMode = iota // Focus is on text input
 	NavFocus                    // Focus is on navigation (hotkeys active)
 )
-

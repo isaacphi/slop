@@ -29,7 +29,7 @@ func New(thm *theme.Theme, globalKeyMap *keymap.GlobalKeyMap) Model {
 	km := keymap.NewHomeKeyMap(globalKeyMap)
 	inputModel := input.New(thm)
 	helpModel := help.New(km, thm)
-	
+
 	return Model{
 		keyMap:    km,
 		input:     inputModel,
@@ -89,7 +89,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			case "c":
 				return m, func() tea.Msg {
-					return screens.ScreenChangeMsg{Screen: screens.SettingsScreen}
+					return screens.ScreenChangeMsg{Screen: screens.ChatScreen}
 				}
 			case "?":
 				// Toggle help
@@ -102,7 +102,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// When enter is pressed, go to chat screen with the input value
 				// Store message in the demo text (just for demo purposes)
 				m.demoText = m.input.Value()
-				
+
 				cmds = append(cmds, func() tea.Msg {
 					return screens.ScreenChangeMsg{Screen: screens.ChatScreen}
 				})
@@ -144,10 +144,10 @@ func (m Model) View() string {
 		Height(contentHeight).
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center)
-	
+
 	b.WriteString(demoTextStyle.Render(m.demoText))
 	b.WriteString("\n\n")
-	
+
 	// Add focus indicator to input if in nav mode
 	inputView := m.input.View()
 	if m.focusMode == screens.NavFocus {
@@ -156,19 +156,19 @@ func (m Model) View() string {
 			BorderForeground(m.theme.Subtle).
 			Render(inputView)
 	}
-	
+
 	b.WriteString(inputView)
 	b.WriteString("\n\n")
-	
+
 	// Let the help component handle displaying the help
 	// We'll prepend our focus mode indicator
 	escHint := "ESC: " + (map[screens.FocusMode]string{
 		screens.InputFocus: "exit input mode",
 		screens.NavFocus:   "enter input mode",
 	})[m.focusMode] + " | "
-	
+
 	helpStyle := m.theme.FooterStyle.Copy().Width(m.width)
-	
+
 	// Use the help component's view with our custom styling
 	if m.help.ShowAll {
 		b.WriteString(helpStyle.Render(m.help.View()))
@@ -178,3 +178,4 @@ func (m Model) View() string {
 
 	return b.String()
 }
+

@@ -18,13 +18,13 @@ type Model struct {
 	textInput textinput.Model
 	theme     *theme.Theme
 	width     int
+	focused   bool
 }
 
 // New creates a new input model
 func New(thm *theme.Theme) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
-	ti.Focus()
 	ti.CharLimit = 500
 	ti.Width = 80
 
@@ -32,6 +32,7 @@ func New(thm *theme.Theme) Model {
 		textInput: ti,
 		theme:     thm,
 		width:     80,
+		focused:   false,
 	}
 }
 
@@ -43,12 +44,19 @@ func (m *Model) SetWidth(width int) {
 
 // Focus focuses the input
 func (m *Model) Focus() {
+	m.focused = true
 	m.textInput.Focus()
 }
 
 // Blur blurs the input
 func (m *Model) Blur() {
+	m.focused = false
 	m.textInput.Blur()
+}
+
+// IsFocused returns whether the input is focused
+func (m Model) IsFocused() bool {
+	return m.focused
 }
 
 // Value returns the current input value
@@ -95,3 +103,4 @@ func (m Model) View() string {
 
 	return b.String()
 }
+
