@@ -48,7 +48,7 @@ func StartTUI(config interface{}) error {
 
 // initialModel creates the initial model for the TUI
 func initialModel(config *Config) Model {
-	// Create focus manager
+	// Create focus manager that starts in NavFocus mode
 	focusManager := focus.New()
 
 	// Create the screens
@@ -96,6 +96,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case screens.HomeScreen:
 			cmd = m.homeScreen.Init()
 		case screens.ChatScreen:
+			// Reset focus mode when switching to chat screen to ensure it's consistent
+			m.focusManager.BlurAll()
 			cmd = m.chatScreen.Init()
 		}
 		cmds = append(cmds, cmd)

@@ -25,6 +25,15 @@ func New() *Manager {
 	}
 }
 
+// NewWithInputFocus creates a new focus manager with initial input focus mode
+func NewWithInputFocus() *Manager {
+	return &Manager{
+		components:   make(map[string]FocusableComponent),
+		currentFocus: "",
+		mode:         screens.InputFocus,
+	}
+}
+
 // Register adds a component to the focus manager
 func (m *Manager) Register(id string, component FocusableComponent) {
 	m.components[id] = component
@@ -57,19 +66,33 @@ func (m *Manager) SetFocus(id string) {
 
 // BlurAll blurs all components and switches to nav mode
 func (m *Manager) BlurAll() {
+	// Force blur on all components
 	for _, comp := range m.components {
 		comp.Blur()
 	}
+	// Clear current focus and set mode to navigation
 	m.currentFocus = ""
 	m.mode = screens.NavFocus
 }
 
 // ToggleFocus toggles between input and navigation focus modes
 func (m *Manager) ToggleFocus() {
+	// Explicitly toggle between the two modes regardless of current focus
 	if m.mode == screens.InputFocus {
+		// Currently in input mode, switch to nav mode
 		m.BlurAll()
-	} else if m.currentFocus != "" {
-		m.SetFocus(m.currentFocus)
+	} else {
+		// Currently in nav mode, switch to input mode
+		// If we have a remembered focus, use it, otherwise pick the first component
+		if m.currentFocus != "" {
+			m.SetFocus(m.currentFocus)
+		} else if len(m.components) > 0 {
+			// Pick the first component if we have any
+			for id := range m.components {
+				m.SetFocus(id)
+				break
+			}
+		}
 	}
 }
 

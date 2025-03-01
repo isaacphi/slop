@@ -1,6 +1,7 @@
 package input
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -56,7 +57,12 @@ func (m *Model) Blur() {
 
 // IsFocused returns whether the input is focused
 func (m Model) IsFocused() bool {
-	return m.focused
+	return m.focused && m.textInput.Focused()
+}
+
+// Debug returns the focus state for debugging
+func (m Model) Debug() string {
+	return fmt.Sprintf("Model focused: %v, textInput focused: %v", m.focused, m.textInput.Focused())
 }
 
 // Value returns the current input value

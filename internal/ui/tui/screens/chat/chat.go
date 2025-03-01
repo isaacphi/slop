@@ -57,8 +57,7 @@ func New(thm *theme.Theme, globalKeyMap *keymap.GlobalKeyMap, focusMgr *focus.Ma
 		return nil
 	})
 
-	// Set initial focus
-	focusMgr.SetFocus(inputID)
+	// Do not set initial focus - we start in Nav mode
 
 	return Model{
 		keyMap:      km,
@@ -84,12 +83,9 @@ func (m *Model) SetSize(width, height int) {
 
 // Init initializes the chat screen
 func (m *Model) Init() tea.Cmd {
-	// Set focus based on mode
-	if m.focusManager.GetMode() == screens.InputFocus {
-		m.focusManager.SetFocus(m.inputID)
-	} else {
-		m.focusManager.BlurAll()
-	}
+	// Always start in nav mode, requiring user to press ESC to focus input
+	// This ensures consistent behavior
+	m.focusManager.BlurAll()
 	return nil
 }
 
@@ -103,12 +99,21 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Handle focus mode switching with ESC
-		if msg.Type == tea.KeyEsc {
-			m.focusManager.ToggleFocus()
+		if msg.String() == "esc" {
+			// Always toggle focus explicitly and directly
+			if m.focusManager.GetMode() == screens.InputFocus {
+				m.focusManager.BlurAll()
+				// Force blur again to be sure
+				m.input.Blur()
+			} else {
+				m.focusManager.SetFocus(m.inputID)
+				// Force focus again to be sure
+				m.input.Focus()
+			}
 			return m, nil
 		}
 
-		// Handle keys based on focus mode
+		// Handle keys based on focus mode - only when in navigation mode
 		if m.focusManager.GetMode() == screens.NavFocus {
 			// Navigation mode key handling
 			switch msg.String() {
@@ -119,9 +124,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return screens.ScreenChangeMsg{Screen: screens.HomeScreen}
 				}
 			case "c":
-				return m, func() tea.Msg {
-					return screens.ScreenChangeMsg{Screen: screens.ChatScreen}
-				}
+				// No-op for already being on chat screen
+				return m, nil
 			case "?":
 				// Toggle help
 				m.help.ShowAll = !m.help.ShowAll
@@ -152,9 +156,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 	}
 
-	// Always update input but it will only respond to events when focused
-	m.input, cmd = m.input.Update(msg)
-	cmds = append(cmds, cmd)
+	// Only update input if we're in input focus mode
+	if m.focusManager.GetMode() == screens.InputFocus {
+		m.input, cmd = m.input.Update(msg)
+		cmds = append(cmds, cmd)
+	} else {
+		// Even if we're not handling input updates, ensure the input is properly blurred
+		if m.input.IsFocused() {
+			m.input.Blur()
+		}
+	}
 
 	// Always update help
 	var helpModel help.Model
@@ -239,4 +250,3 @@ func (m Model) renderMessages(maxHeight int) string {
 type chatResponseMsg struct {
 	content string
 }
-
