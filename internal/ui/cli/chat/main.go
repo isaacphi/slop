@@ -12,8 +12,8 @@ var (
 		Short: "Start interactive chat",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg := appState.Get().Config
-			tui.StartTUI(cfg)
+			_ = appState.Get().Config
+			tui.StartTUI()
 
 			return nil
 		},
