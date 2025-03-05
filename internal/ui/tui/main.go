@@ -51,10 +51,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keymap.Help):
 			m.help.ShowAll = !m.help.ShowAll
+
 		case key.Matches(msg, keymap.Quit):
 			return m, tea.Quit
+
 		case key.Matches(msg, keymap.HomeScreen):
 			m.currentScreen = HomeScreen
+
 		case key.Matches(msg, keymap.ChatScreen):
 			m.currentScreen = ChatScreen
 		}
@@ -97,9 +100,14 @@ func (m *Model) getBodyContent() string {
 }
 
 func (m *Model) getHelpHeight() int {
-	// TODO: make this dynamic
 	if m.help.ShowAll {
-		return 2
+		n := 0
+		for _, keys := range keymap.FullHelp() {
+			if len(keys) > n {
+				n = len(keys)
+			}
+		}
+		return n
 	} else {
 		return 1
 	}

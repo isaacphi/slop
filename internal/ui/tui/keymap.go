@@ -28,7 +28,7 @@ var keymap = KeyMap{
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),
-		key.WithHelp("?", "show/hide help"),
+		key.WithHelp("?", "toggle help"),
 	),
 	ChatScreen: key.NewBinding(
 		key.WithKeys("c"),
@@ -53,7 +53,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 // key.Map interface.
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down}, // first column
-		{k.Quit},       // second column
+		{k.Up, k.Down},   // first column
+		{k.Quit, k.Help}, // second column
 	}
 }
