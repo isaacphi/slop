@@ -90,7 +90,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, tea.Quit
 				case "?":
 					m.help.ShowAll = !m.help.ShowAll
-					return m, nil
+					// Send a resize command to force the content to resize based on new help size
+					return m, func() tea.Msg {
+						return tea.WindowSizeMsg{
+							Width:  m.width,
+							Height: m.height,
+						}
+					}
 				case "c":
 					if m.mode == keymap.NormalMode {
 						m.currentScreen = ChatScreen

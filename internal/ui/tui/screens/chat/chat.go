@@ -1,7 +1,10 @@
 package chat
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/isaacphi/slop/internal/ui/tui/keymap"
@@ -13,6 +16,7 @@ type Model struct {
 	height   int
 	textArea textarea.Model
 	messages []string
+	viewport viewport.Model
 }
 
 // New creates a new chat screen model
@@ -28,15 +32,24 @@ func New() Model {
 		"Press 'h' to return to home screen.",
 	}
 
+	vp := viewport.New(0, 0)
+	vp.SetContent(strings.Join(messages, "\n"))
+
 	return Model{
 		textArea: ta,
 		messages: messages,
+		viewport: vp,
 	}
 }
 
 // Init initializes the chat screen
 func (m Model) Init() tea.Cmd {
 	return nil
+}
+
+// updateViewportContent updates the viewport content with current messages
+func (m *Model) updateViewportContent() {
+	m.viewport.SetContent(strings.Join(m.messages, "\n"))
 }
 
 // Update handles updates to the chat screen
@@ -48,14 +61,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 
-		// Also update textarea width
-		m.textArea.SetWidth(msg.Width - 3)
-		m.textArea.SetHeight(5)
+		// Calculate appropriate heights
+		inputHeight := 5                                           // Fixed input height
+		titleHeight := 1                                           // Title height
+		viewportHeight := m.height - inputHeight - titleHeight - 2 // Account for padding/gaps
+
+		// Update textarea dimensions
+		m.textArea.SetWidth(msg.Width - 4) // Account for border
+		m.textArea.SetHeight(inputHeight)
+
+		// Update viewport dimensions
+		m.viewport.Width = msg.Width
+		m.viewport.Height = viewportHeight
+
+		// Update the viewport content
+		m.updateViewportContent()
 
 	case tea.KeyMsg:
 		switch msg.String() {
-
-		// TODO: should be able to act on named bindings with key.Matches ...
 		case "esc":
 			m.textArea.Blur()
 			return m, tea.Cmd(func() tea.Msg {
@@ -76,8 +99,39 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if content != "" {
 					m.messages = append(m.messages, "> "+content)
 					m.textArea.Reset()
+
+					// Update viewport content with new messages
+					m.updateViewportContent()
+
+					// Scroll to the bottom of viewport
+					m.viewport.GotoBottom()
+
 					return m, nil
 				}
+			}
+
+		case "up", "k":
+			// Scroll viewport up when in normal mode
+			if !m.textArea.Focused() {
+				// m.viewport.LineUp(1)
+			}
+
+		case "down", "j":
+			// Scroll viewport down when in normal mode
+			if !m.textArea.Focused() {
+				// m.viewport.LineDown(1)
+			}
+
+		case "pgup":
+			// Page up in viewport
+			if !m.textArea.Focused() {
+				m.viewport.HalfViewUp()
+			}
+
+		case "pgdown":
+			// Page down in viewport
+			if !m.textArea.Focused() {
+				m.viewport.HalfViewDown()
 			}
 		}
 
@@ -87,12 +141,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.textArea, cmd = m.textArea.Update(msg)
 			cmds = append(cmds, cmd)
 		}
+
 	case keymap.SetModeMsg:
 		// If we're switching to normal mode, blur the textarea
 		if msg.Mode == keymap.NormalMode {
 			m.textArea.Blur()
 		}
 	}
+
+	// Handle viewport updates
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -106,27 +166,22 @@ func (m Model) View() string {
 		Padding(0, 1).
 		Render("slop - Chat Screen")
 
-	// Style for message area
-	messageStyle := lipgloss.NewStyle().
+	// Style for input area (with border)
+	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#7D56F4")).
-		Padding(1, 1).
-		Width(m.width - 4).
-		Height(m.height - 8) // Leave room for input and title
+		Padding(0, 1)
 
-	// Render messages
-	messageContent := ""
-	for _, msg := range m.messages {
-		messageContent += msg + "\n"
-	}
+	// Render viewport (no border)
+	viewportContent := m.viewport.View()
 
-	// Render input area
-	inputArea := m.textArea.View()
+	// Render input area with border
+	inputArea := inputStyle.Render(m.textArea.View())
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		title,
-		messageStyle.Render(messageContent),
+		viewportContent,
 		inputArea,
 	)
 }
