@@ -14,24 +14,48 @@ const (
 
 // KeyMap represents a set of keybindings
 type KeyMap struct {
-	Keys []key.Binding
+	Groups map[int][]key.Binding
 }
 
 // NewKeyMap creates a new empty keymap
 func NewKeyMap() KeyMap {
 	return KeyMap{
-		Keys: []key.Binding{},
+		Groups: make(map[int][]key.Binding),
 	}
 }
 
+type KeyGroup int
+
+const (
+	SystemGroup = iota
+	NavigationGroup
+	ActionGroup
+)
+
 // Add adds a key binding to the keymap
-func (k *KeyMap) Add(binding key.Binding) {
-	k.Keys = append(k.Keys, binding)
+func (k *KeyMap) Add(group int, binding key.Binding) {
+	if _, exists := k.Groups[group]; !exists {
+		k.Groups[group] = []key.Binding{}
+	}
+	k.Groups[group] = append(k.Groups[group], binding)
 }
 
 // Merge combines two keymaps
 func (k *KeyMap) Merge(other KeyMap) {
-	k.Keys = append(k.Keys, other.Keys...)
+	for group, bindings := range other.Groups {
+		for _, binding := range bindings {
+			k.Add(group, binding)
+		}
+	}
+}
+
+// AllBindings returns all bindings regardless of group
+func (k *KeyMap) AllBindings() []key.Binding {
+	var allBindings []key.Binding
+	for _, bindings := range k.Groups {
+		allBindings = append(allBindings, bindings...)
+	}
+	return allBindings
 }
 
 // KeyMapProvider extends tea.Model with keymap functionality

@@ -1,4 +1,4 @@
-package Chat
+package chat
 
 import (
 	"github.com/charmbracelet/bubbles/key"
@@ -21,7 +21,6 @@ func New() Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type your message here..."
 	ta.ShowLineNumbers = false
-	ta.Focus()
 
 	return Model{
 		textArea: ta,
@@ -43,37 +42,42 @@ func (m Model) GetKeyMap(mode keymap.AppMode) keymap.KeyMap {
 	km := keymap.NewKeyMap()
 
 	if mode == keymap.NormalMode {
-		km.Add(key.NewBinding(
-			key.WithKeys("h"),
-			key.WithHelp("h", "home screen"),
-		))
-		km.Add(key.NewBinding(
-			key.WithKeys("i"),
-			key.WithHelp("i", "input mode"),
-		))
-		km.Add(key.NewBinding(
-			key.WithKeys("j", "down"),
-			key.WithHelp("j/↓", "scroll down"),
-		))
-		km.Add(key.NewBinding(
-			key.WithKeys("k", "up"),
-			key.WithHelp("k/↑", "scroll up"),
-		))
+		km.Add(
+			keymap.NavigationGroup,
+			key.NewBinding(
+				key.WithKeys("h"),
+				key.WithHelp("h", "home screen"),
+			))
+		km.Add(
+			keymap.SystemGroup,
+			key.NewBinding(
+				key.WithKeys("i"),
+				key.WithHelp("i", "input mode"),
+			))
+		km.Add(
+			keymap.NavigationGroup,
+			key.NewBinding(
+				key.WithKeys("j", "down"),
+				key.WithHelp("j", "scroll down"),
+			))
+		km.Add(
+			keymap.NavigationGroup,
+			key.NewBinding(
+				key.WithKeys("k", "up"),
+				key.WithHelp("k", "scroll up"),
+			))
 	} else if mode == keymap.InputMode {
-		km.Add(key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "send message"),
-		))
+		// No global key bindings in input mode
+		// except for 'enter' to send message and 'esc' (handled in main model)
+		km.Add(
+			keymap.SystemGroup,
+			key.NewBinding(
+				key.WithKeys("enter"),
+				key.WithHelp("enter", "send message"),
+			))
 	}
 
 	return km
-}
-
-// ToggleInputMode enters or exits input mode
-func (m Model) ToggleInputMode() (Model, tea.Cmd) {
-	return m, tea.Cmd(func() tea.Msg {
-		return keymap.SetModeMsg{Mode: keymap.InputMode}
-	})
 }
 
 // Update handles updates to the chat screen
@@ -92,7 +96,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		switch msg.String() {
 		case "i":
 			// Enter input mode
-			return m.ToggleInputMode()
+			m.textArea.Focus()
+			return m, tea.Cmd(func() tea.Msg {
+				return keymap.SetModeMsg{Mode: keymap.InputMode}
+			})
 
 		case "enter":
 			// If input mode, add message and clear textarea
@@ -111,6 +118,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.textArea, cmd = m.textArea.Update(msg)
 			cmds = append(cmds, cmd)
+		}
+	case keymap.SetModeMsg:
+		// If we're switching to normal mode, blur the textarea
+		if msg.Mode == keymap.NormalMode {
+			m.textArea.Blur()
 		}
 	}
 
