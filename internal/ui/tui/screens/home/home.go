@@ -1,10 +1,8 @@
 package home
 
 import (
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/isaacphi/slop/internal/ui/tui/keymap"
 )
 
 // Model represents the home screen
@@ -21,34 +19,6 @@ func New() Model {
 // Init initializes the home screen
 func (m Model) Init() tea.Cmd {
 	return nil
-}
-
-// GetKeyMap returns home screen specific keybindings
-func (m Model) GetKeyMap(mode keymap.AppMode) keymap.KeyMap {
-	km := keymap.NewKeyMap()
-
-	if mode == keymap.NormalMode {
-		km.Add(
-			keymap.NavigationGroup,
-			key.NewBinding(
-				key.WithKeys("c"),
-				key.WithHelp("c", "chat screen"),
-			))
-		km.Add(
-			keymap.NavigationGroup,
-			key.NewBinding(
-				key.WithKeys("j", "down"),
-				key.WithHelp("j", "move down"),
-			))
-		km.Add(
-			keymap.NavigationGroup,
-			key.NewBinding(
-				key.WithKeys("k", "up"),
-				key.WithHelp("k", "move up"),
-			))
-	}
-
-	return km
 }
 
 // Update handles updates to the home screen
