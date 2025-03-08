@@ -20,14 +20,17 @@ func New() Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type your message here..."
 	ta.ShowLineNumbers = false
+	ta.MaxHeight = 5
+
+	messages := []string{
+		"Welcome to the chat screen!",
+		"Press 'i' to start typing, ESC to exit typing mode.",
+		"Press 'h' to return to home screen.",
+	}
 
 	return Model{
 		textArea: ta,
-		messages: []string{
-			"Welcome to the chat screen!",
-			"Press 'i' to start typing, ESC to exit typing mode.",
-			"Press 'h' to return to home screen.",
-		},
+		messages: messages,
 	}
 }
 
@@ -46,10 +49,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.height = msg.Height
 
 		// Also update textarea width
-		m.textArea.SetWidth(msg.Width - 4)
+		m.textArea.SetWidth(msg.Width - 3)
+		m.textArea.SetHeight(5)
 
 	case tea.KeyMsg:
 		switch msg.String() {
+
+		// TODO: should be able to act on named bindings with key.Matches ...
+		case "esc":
+			m.textArea.Blur()
+			return m, tea.Cmd(func() tea.Msg {
+				return keymap.SetModeMsg{Mode: keymap.NormalMode}
+			})
+
 		case "i":
 			// Enter input mode
 			m.textArea.Focus()

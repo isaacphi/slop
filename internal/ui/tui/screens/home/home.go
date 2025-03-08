@@ -30,7 +30,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		// Handle home-specific key presses
-		// For example, navigation within the home screen
 	}
 
 	return m, nil
