@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/isaacphi/slop/refs/heads/main/internal/config/schema.json
+# yaml-language-server: $schema=schema.json
 
 presets:
   gemini:
@@ -23,3 +23,13 @@ internal:
     Focus on the main topics discussed and key points.
     The purpose is to quickly identify a conversation in a list.
     Summary should be less than 8 words long.
+keyMap:
+  quit: ["q"]
+  toggleHelp: ["?"]
+  switchToChat: ["c"]
+  switchToHome: ["h"]
+  exitInput: ["esc"]
+  inputMode: ["i"]
+  scrollDown: ["j"]
+  scrollUp: ["k"]
+  sendMessage: ["enter"]

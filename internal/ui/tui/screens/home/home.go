@@ -3,17 +3,23 @@ package home
 import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/isaacphi/slop/internal/config"
+	"github.com/isaacphi/slop/internal/ui/tui/keymap"
 )
 
 // Model represents the home screen
 type Model struct {
 	width  int
 	height int
+	mode   keymap.AppMode
+	keyMap *config.KeyMap
 }
 
 // New creates a new home screen model
-func New() Model {
-	return Model{}
+func New(keyMap *config.KeyMap) Model {
+	return Model{
+		keyMap: keyMap,
+	}
 }
 
 // Init initializes the home screen

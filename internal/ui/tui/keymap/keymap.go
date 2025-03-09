@@ -2,6 +2,7 @@ package keymap
 
 import (
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/isaacphi/slop/internal/config"
 )
 
 // AppMode represents the application's current input mode
@@ -14,13 +15,17 @@ const (
 
 // KeyMap represents a set of keybindings
 type KeyMap struct {
-	Groups map[int][]key.Binding
+	Groups         map[int][]key.Binding
+	KeyToActionMap map[string]string // Maps key combinations to action names
+	userKeyMap     *config.KeyMap    // Reference to user key configurations
 }
 
 // NewKeyMap creates a new empty keymap
-func NewKeyMap() KeyMap {
+func NewKeyMap(userKeyMap *config.KeyMap) KeyMap {
 	return KeyMap{
-		Groups: make(map[int][]key.Binding),
+		Groups:         make(map[int][]key.Binding),
+		KeyToActionMap: make(map[string]string),
+		userKeyMap:     userKeyMap,
 	}
 }
 
@@ -32,19 +37,41 @@ const (
 	ActionGroup
 )
 
-// Add adds a key binding to the keymap
-func (k *KeyMap) Add(group int, binding key.Binding) {
+// AddAction adds an action with its keys to the keymap
+func (k *KeyMap) AddAction(group int, actionName string, helpText string) {
+	keyList := k.userKeyMap.GetKeys(actionName)
+
+	if len(keyList) == 0 {
+		return // Skip if no keys available
+	}
+
+	binding := key.NewBinding(
+		key.WithKeys(keyList...),
+		key.WithHelp(keyList[0], helpText),
+	)
+
 	if _, exists := k.Groups[group]; !exists {
 		k.Groups[group] = []key.Binding{}
 	}
 	k.Groups[group] = append(k.Groups[group], binding)
+
+	// Add each key to the action map
+	for _, keyName := range keyList {
+		k.KeyToActionMap[keyName] = actionName
+	}
 }
 
 // Merge combines two keymaps
 func (k *KeyMap) Merge(other KeyMap) {
 	for group, bindings := range other.Groups {
 		for _, binding := range bindings {
-			k.Add(group, binding)
+			// Find the associated action
+			for _, key := range binding.Keys() {
+				if action, ok := other.KeyToActionMap[key]; ok {
+					k.AddAction(group, action, binding.Help().Desc)
+					break
+				}
+			}
 		}
 	}
 }

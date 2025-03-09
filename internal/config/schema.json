@@ -49,6 +49,10 @@
             "$ref": "#/$defs/Prompt"
           },
           "type": "object"
+        },
+        "keyMap": {
+          "$ref": "#/$defs/KeyMap",
+          "description": "Custom keybindings for the TUI"
         }
       },
       "additionalProperties": false,
@@ -64,6 +68,102 @@
         "summaryPrompt": {
           "type": "string",
           "description": "Prompt used for generating conversation summaries"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "KeyMap": {
+      "properties": {
+        "quit": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Exit the application",
+          "default": [
+            "q"
+          ]
+        },
+        "toggleHelp": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Toggle help display",
+          "default": [
+            "?"
+          ]
+        },
+        "switchToChat": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Switch to chat screen",
+          "default": [
+            "c"
+          ]
+        },
+        "switchToHome": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Switch to home screen",
+          "default": [
+            "h"
+          ]
+        },
+        "exitInput": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Exit input mode",
+          "default": [
+            "esc"
+          ]
+        },
+        "inputMode": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Enter input mode",
+          "default": [
+            "i"
+          ]
+        },
+        "scrollDown": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Scroll down in chat",
+          "default": [
+            "j"
+          ]
+        },
+        "scrollUp": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Scroll up in chat",
+          "default": [
+            "k"
+          ]
+        },
+        "sendMessage": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Send a message",
+          "default": [
+            "enter"
+          ]
         }
       },
       "additionalProperties": false,

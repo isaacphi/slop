@@ -15,6 +15,7 @@ type ConfigSchema struct {
 	Log           Log                  `mapstructure:"log" json:"log" jsonschema:"description=Logging configuration"`
 	Toolsets      map[string]Toolset   `mapstructure:"toolsets" json:"toolsets" jsonschema:"description=Configurations for sets of MCP Servers and tools. Leave empty to allow all servers and all tools."`
 	Prompts       map[string]Prompt    `mapstructure:"prompts" json:"prompts" jsonschema:"Reusable prompt configuration"`
+	KeyMap        KeyMap               `mapstructure:"keyMap" json:"keyMap" jsonschema:"description=Custom keybindings for the TUI"`
 
 	// Internal fields for printing
 	sources  map[string]string

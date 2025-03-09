@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../internal/config/schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/isaacphi/slop/refs/heads/main/internal/config/schema.json
 # Using local schema for development
 
 mcpServers:

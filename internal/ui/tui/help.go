@@ -7,13 +7,13 @@ import (
 
 // ShortHelp returns keybindings for the mini help view
 func (m Model) ShortHelp() []key.Binding {
-	km := m.GetKeyMap(m.mode)
+	km := m.GetKeyMap()
 	return km.Groups[keymap.SystemGroup]
 }
 
 // FullHelp returns keybindings organized by their groups
 func (m Model) FullHelp() [][]key.Binding {
-	keyMap := m.GetKeyMap(m.mode)
+	keyMap := m.GetKeyMap()
 
 	// Convert the groups map into a slice of columns
 	var result [][]key.Binding

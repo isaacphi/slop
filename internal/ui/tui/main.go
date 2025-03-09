@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/ui/tui/keymap"
 	"github.com/isaacphi/slop/internal/ui/tui/screens/chat"
 	"github.com/isaacphi/slop/internal/ui/tui/screens/home"
@@ -21,6 +21,7 @@ type Model struct {
 	mode          keymap.AppMode
 	homeScreen    home.Model
 	chatScreen    chat.Model
+	keyMap        *config.KeyMap
 }
 
 type ScreenType int
@@ -31,14 +32,16 @@ const (
 )
 
 // StartTUI initializes and runs the TUI
-func StartTUI() error {
+func StartTUI(keyMap *config.KeyMap) error {
 	p := tea.NewProgram(Model{
 		help:          help.New(),
 		currentScreen: HomeScreen,
 		mode:          keymap.NormalMode,
-		homeScreen:    home.New(),
-		chatScreen:    chat.New(),
+		homeScreen:    home.New(keyMap),
+		chatScreen:    chat.New(keyMap),
+		keyMap:        keyMap,
 	}, tea.WithAltScreen())
+
 	if _, err := p.Run(); err != nil {
 		return fmt.Errorf("error running TUI: %w", err)
 	}
@@ -57,9 +60,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case keymap.SetModeMsg:
 		m.mode = msg.Mode
+
+		// Pass the adjusted size message to the screens
+		homeScreen, _ := m.homeScreen.Update(msg)
+		m.homeScreen = homeScreen
+
+		chatScreen, _ := m.chatScreen.Update(msg)
+		m.chatScreen = chatScreen
+
 		return m, nil
 
 	case tea.KeyMsg:
+		// First, handle ctrl-c
+		if msg.Type == tea.KeyCtrlC {
+			return m, tea.Quit
+		}
+
+		// If in input mode, pass the key directly to the child view
 		if m.mode == keymap.InputMode {
 			var cmd tea.Cmd
 			switch m.currentScreen {
@@ -75,39 +92,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
-		// In normal mode, process all key bindings
-		keyMap := m.GetKeyMap(m.mode)
-
-		// TODO: handle ctrl-c separately
+		keyMap := m.GetKeyMap()
+		keyStr := msg.String()
 
 		// Check against current keymap
-		for _, binding := range keyMap.AllBindings() {
-			if key.Matches(msg, binding) {
-				// TODO: keys should not be hardcoded here, and double loop is not necessary
-				// Handle global keys
-				switch binding.Help().Key {
-				case "q":
-					return m, tea.Quit
-				case "?":
-					m.help.ShowAll = !m.help.ShowAll
-					// Send a resize command to force the content to resize based on new help size
-					return m, func() tea.Msg {
-						return tea.WindowSizeMsg{
-							Width:  m.width,
-							Height: m.height,
-						}
-					}
-				case "c":
-					if m.mode == keymap.NormalMode {
-						m.currentScreen = ChatScreen
-						return m, nil
-					}
-				case "h":
-					if m.mode == keymap.NormalMode {
-						m.currentScreen = HomeScreen
-						return m, nil
+		if action, exists := keyMap.KeyToActionMap[keyStr]; exists {
+			switch action {
+			case config.KeyActionQuit:
+				return m, tea.Quit
+
+			case config.KeyActionToggleHelp:
+				m.help.ShowAll = !m.help.ShowAll
+				return m, func() tea.Msg {
+					return tea.WindowSizeMsg{
+						Width:  m.width,
+						Height: m.height,
 					}
 				}
+
+			case config.KeyActionSwitchChat:
+				m.currentScreen = ChatScreen
+				return m, nil
+
+			case config.KeyActionSwitchHome:
+				m.currentScreen = HomeScreen
+				return m, nil
 			}
 		}
 
@@ -117,6 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			newHome, cmd := m.homeScreen.Update(msg)
 			m.homeScreen = newHome
 			cmds = append(cmds, cmd)
+
 		case ChatScreen:
 			newChat, cmd := m.chatScreen.Update(msg)
 			m.chatScreen = newChat

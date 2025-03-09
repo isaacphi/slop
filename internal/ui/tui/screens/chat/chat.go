@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/isaacphi/slop/internal/config"
 	"github.com/isaacphi/slop/internal/ui/tui/keymap"
 )
 
@@ -17,10 +18,12 @@ type Model struct {
 	textArea textarea.Model
 	messages []string
 	viewport viewport.Model
+	keyMap   *config.KeyMap
+	mode     keymap.AppMode
 }
 
 // New creates a new chat screen model
-func New() Model {
+func New(keyMap *config.KeyMap) Model {
 	ta := textarea.New()
 	ta.Placeholder = "Type your message here..."
 	ta.ShowLineNumbers = false
@@ -39,6 +42,7 @@ func New() Model {
 		textArea: ta,
 		messages: messages,
 		viewport: vp,
+		keyMap:   keyMap,
 	}
 }
 
@@ -143,6 +147,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 
 	case keymap.SetModeMsg:
+		m.mode = msg.Mode
 		// If we're switching to normal mode, blur the textarea
 		if msg.Mode == keymap.NormalMode {
 			m.textArea.Blur()
