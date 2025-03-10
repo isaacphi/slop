@@ -19,10 +19,10 @@ dbPath: .slop/slop.db
 internal:
   model: "openai"
   summaryPrompt: >
-    Please provide a brief, concise summary of the following conversation.
+    Please provide a concise summary of the following conversation.
     Focus on the main topics discussed and key points.
     The purpose is to quickly identify a conversation in a list.
-    Summary should be less than 8 words long.
+    The summary should be less than 8 words long.
 keyMap:
   quit: ["q"]
   toggleHelp: ["?"]

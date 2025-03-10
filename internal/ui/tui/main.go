@@ -18,10 +18,11 @@ type Model struct {
 	help          help.Model
 	width         int
 	height        int
-	mode          keymap.AppMode
-	homeScreen    home.Model
-	chatScreen    chat.Model
-	keyMap        *config.KeyMap
+	// TODO: I'm not happy with how mode is passed down
+	mode       keymap.AppMode
+	homeScreen home.Model
+	chatScreen chat.Model
+	keyMap     *config.KeyMap
 }
 
 type ScreenType int
@@ -95,7 +96,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		keyMap := m.GetKeyMap()
 		keyStr := msg.String()
 
-		// Check against current keymap
 		if action, exists := keyMap.KeyToActionMap[keyStr]; exists {
 			switch action {
 			case config.KeyActionQuit:

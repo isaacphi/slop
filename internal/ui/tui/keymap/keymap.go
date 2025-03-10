@@ -87,7 +87,7 @@ func (k *KeyMap) AllBindings() []key.Binding {
 
 // KeyMapProvider extends tea.Model with keymap functionality
 type KeyMapProvider interface {
-	GetKeyMap(mode AppMode) KeyMap
+	GetKeyMap() KeyMap
 }
 
 // SetModeMsg is a message to change the application mode
