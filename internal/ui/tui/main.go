@@ -18,11 +18,10 @@ type Model struct {
 	help          help.Model
 	width         int
 	height        int
-	// TODO: I'm not happy with how mode is passed down
-	mode       keymap.AppMode
-	homeScreen home.Model
-	chatScreen chat.Model
-	keyMap     *config.KeyMap
+	mode          keymap.AppMode
+	homeScreen    home.Model
+	chatScreen    chat.Model
+	keyMap        *config.KeyMap
 }
 
 type ScreenType int
@@ -59,20 +58,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case keymap.SetModeMsg:
-		m.mode = msg.Mode
-
-		// Pass the adjusted size message to the screens
-		homeScreen, _ := m.homeScreen.Update(msg)
-		m.homeScreen = homeScreen
-
-		chatScreen, _ := m.chatScreen.Update(msg)
-		m.chatScreen = chatScreen
-
-		return m, nil
-
 	case tea.KeyMsg:
-		// First, handle ctrl-c
+		// Always handle ctrl-c
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
 		}
@@ -96,6 +83,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		keyMap := m.GetKeyMap()
 		keyStr := msg.String()
 
+		// Handle hotkeys
 		if action, exists := keyMap.KeyToActionMap[keyStr]; exists {
 			switch action {
 			case config.KeyActionQuit:
@@ -133,6 +121,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, cmd)
 		}
 
+	case keymap.SetModeMsg:
+		m.mode = msg.Mode
+
+		// Update child screens
+		homeScreen, _ := m.homeScreen.Update(msg)
+		m.homeScreen = homeScreen
+
+		chatScreen, _ := m.chatScreen.Update(msg)
+		m.chatScreen = chatScreen
+
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -163,20 +163,18 @@ func (m Model) View() string {
 	helpHeight := m.getHelpHeight()
 
 	bodyStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		Width(m.width - 2).
-		Height(m.height - 2 - helpHeight)
+		Width(m.width).
+		Height(m.height - helpHeight)
 
 	helpStyle := lipgloss.NewStyle()
 
 	var body string
+
 	switch m.currentScreen {
 	case HomeScreen:
 		body = m.homeScreen.View()
 	case ChatScreen:
 		body = m.chatScreen.View()
-	default:
-		body = "Invalid screen"
 	}
 
 	return lipgloss.JoinVertical(
@@ -191,9 +189,10 @@ func (m Model) getHelpHeight() int {
 		return 1 // One line for short help
 	}
 	height := 1
-	for _, row := range m.FullHelp() {
-		if len(row) > height {
-			height = len(row)
+	// Get height of tallest column
+	for _, col := range m.FullHelp() {
+		if len(col) > height {
+			height = len(col)
 		}
 	}
 	return height
