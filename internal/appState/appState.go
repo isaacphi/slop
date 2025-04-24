@@ -67,13 +67,6 @@ func Get() *App {
 	return globalApp
 }
 
-// TryGet returns the global app instance and a boolean indicating if it's initialized
-func TryGet() (*App, bool) {
-	mu.RLock()
-	defer mu.RUnlock()
-	return globalApp, globalApp != nil
-}
-
 // Cleanup performs cleanup of app resources
 func Cleanup() error {
 	mu.Lock()
